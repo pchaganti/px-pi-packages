@@ -303,7 +303,10 @@ export default function (pi: ExtensionAPI) {
 		models: getFallbackModels(),
 	});
 
-	// After session starts, replace fallback models with live data from the API
+	// After session starts, replace fallback models with live data from the API.
+	// We use ctx.modelRegistry.registerProvider() directly because pi.registerProvider()
+	// queues registrations that are only flushed during runner.initialize(), which has
+	// already completed by the time session_start fires.
 	pi.on("session_start", async (_event, ctx) => {
 		const apiKey = await getSyntheticApiKey(ctx);
 		const hasKey = await hasSyntheticApiKey(ctx);
@@ -315,11 +318,11 @@ export default function (pi: ExtensionAPI) {
 			console.log(`  2. Add to ${AUTH_JSON_PATH} (see README for details)`);
 		}
 
-		// Fetch live models and re-register to replace fallbacks
+		// Fetch live models and register directly on the model registry
 		const models = await fetchSyntheticModels(apiKey);
 
 		if (models.length > 0) {
-			pi.registerProvider("synthetic", {
+			ctx.modelRegistry.registerProvider("synthetic", {
 				baseUrl: SYNTHETIC_API_BASE_URL,
 				apiKey: "SYNTHETIC_API_KEY",
 				api: "openai-completions",
