@@ -16,8 +16,7 @@
     "ai",
     "ai-provider",
     "coding-assistant",
-    "synthetic",
-    "synthetic-new"
+    "synthetic"
   ],
   "pi": {
     "extensions": [
