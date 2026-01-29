@@ -6,7 +6,7 @@ Extensions for [pi](https://github.com/badlogic/pi-mono), the AI coding agent.
 
 | Package | Description | Install |
 |---------|-------------|---------|
-| [pi-synthetic-provider](./packages/pi-synthetic-provider/) | [Synthetic](https://synthetic.new) model provider | `pi install npm:pi-synthetic-provider` |
+| [@benvargas/pi-synthetic-provider](./packages/pi-synthetic-provider/) | [Synthetic](https://synthetic.new) model provider | `pi install npm:@benvargas/pi-synthetic-provider` |
 
 ## Install (git)
 

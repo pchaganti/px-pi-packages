@@ -1,4 +1,4 @@
-# pi-synthetic-provider
+# @benvargas/pi-synthetic-provider
 
 [Synthetic](https://synthetic.new) model provider for [pi](https://github.com/badlogic/pi-mono), the AI coding agent.
 
@@ -15,13 +15,13 @@
 ## Installation
 
 ```bash
-pi install npm:pi-synthetic-provider
+pi install npm:@benvargas/pi-synthetic-provider
 ```
 
 Or try without installing:
 
 ```bash
-pi -e npm:pi-synthetic-provider
+pi -e npm:@benvargas/pi-synthetic-provider
 ```
 
 ## Setup
@@ -98,7 +98,7 @@ When multiple sources are configured, pi checks in this order:
 ## Uninstall
 
 ```bash
-pi remove npm:pi-synthetic-provider
+pi remove npm:@benvargas/pi-synthetic-provider
 ```
 
 ## License
