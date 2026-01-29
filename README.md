@@ -9,6 +9,7 @@ Pi packages can include extensions, skills, prompt templates, and themes. See th
 | Package | Type | Description | Install |
 |---------|------|-------------|---------|
 | [@benvargas/pi-synthetic-provider](./packages/pi-synthetic-provider/) | Extension | [Synthetic](https://synthetic.new) model provider — access Kimi, GLM, MiniMax, DeepSeek, Qwen, and more | `pi install npm:@benvargas/pi-synthetic-provider` |
+| [@benvargas/pi-antigravity-image-gen](./packages/pi-antigravity-image-gen/) | Extension | Google Antigravity image generation — Gemini and Imagen models with inline terminal rendering | `pi install npm:@benvargas/pi-antigravity-image-gen` |
 
 Each package has its own README with setup instructions, usage, and configuration details.
 
