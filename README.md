@@ -11,6 +11,7 @@ Pi packages can include extensions, skills, prompt templates, and themes. See th
 | [@benvargas/pi-synthetic-provider](./packages/pi-synthetic-provider/) | Extension | [Synthetic](https://synthetic.new) model provider — access Kimi, GLM, MiniMax, DeepSeek, Qwen, and more | `pi install npm:@benvargas/pi-synthetic-provider` |
 | [@benvargas/pi-antigravity-image-gen](./packages/pi-antigravity-image-gen/) | Extension | Google Antigravity image generation — Gemini 3 Pro Image with inline terminal rendering | `pi install npm:@benvargas/pi-antigravity-image-gen` |
 | [@benvargas/pi-exa-mcp](./packages/pi-exa-mcp/) | Extension | Exa MCP tools — real-time web search and code context via Exa's Model Context Protocol | `pi install npm:@benvargas/pi-exa-mcp` |
+| [@benvargas/pi-firecrawl-mcp](./packages/pi-firecrawl-mcp/) | Extension | Firecrawl MCP tools — web scraping, crawling, and data extraction via Firecrawl's Model Context Protocol | `pi install npm:@benvargas/pi-firecrawl-mcp` |
 
 Each package has its own README with setup instructions, usage, and configuration details.
 
@@ -44,6 +45,7 @@ If installed individually via npm:
 pi remove npm:@benvargas/pi-synthetic-provider
 pi remove npm:@benvargas/pi-antigravity-image-gen
 pi remove npm:@benvargas/pi-exa-mcp
+pi remove npm:@benvargas/pi-firecrawl-mcp
 ```
 
 ## Contributing
