@@ -194,16 +194,16 @@ Config files are loaded in order (first match wins):
 3. `./.pi/extensions/firecrawl-mcp.json` (project-level)
 4. `~/.pi/agent/extensions/firecrawl-mcp.json` (global)
 
+If none exist, the extension writes a default config to the global path with `apiKey` set to `null`.
+
 ### Config File Format
 
 ```json
 {
   "url": "https://mcp.firecrawl.dev/v2/mcp",
-  "apiKey": "your_api_key",
-  "tools": ["firecrawl_scrape", "firecrawl_map"],
-  "headers": {
-    "X-Custom-Header": "value"
-  },
+  "apiKey": null,
+  "tools": null,
+  "headers": null,
   "timeoutMs": 30000,
   "protocolVersion": "2025-06-18",
   "maxBytes": 51200,

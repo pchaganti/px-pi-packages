@@ -1,5 +1,10 @@
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	DEFAULT_CONFIG_FILE,
+	ensureDefaultConfigFile,
 	normalizeTools,
 	parseTimeoutMs,
 	parseToolsFromUrl,
@@ -49,5 +54,17 @@ describe("pi-exa-mcp helpers", () => {
 	it("parses timeout values", () => {
 		expect(parseTimeoutMs("250", 10)).toBe(250);
 		expect(parseTimeoutMs("0", 10)).toBe(10);
+	});
+
+	it("writes default config when none exists", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-exa-config-"));
+		const projectConfigPath = join(base, "project", ".pi", "extensions", "exa-mcp.json");
+		const globalConfigPath = join(base, "global", "extensions", "exa-mcp.json");
+
+		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+
+		expect(existsSync(globalConfigPath)).toBe(true);
+		const raw = readFileSync(globalConfigPath, "utf-8");
+		expect(JSON.parse(raw)).toEqual(DEFAULT_CONFIG_FILE);
 	});
 });

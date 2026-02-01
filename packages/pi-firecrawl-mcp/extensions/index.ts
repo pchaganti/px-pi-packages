@@ -24,9 +24,9 @@
  *   "Extract product prices from these URLs"
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { StringEnum } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "@mariozechner/pi-coding-agent";
@@ -40,6 +40,16 @@ import { Type } from "@sinclair/typebox";
 const DEFAULT_ENDPOINT = "https://mcp.firecrawl.dev/v2/mcp";
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_PROTOCOL_VERSION = "2025-06-18";
+const DEFAULT_CONFIG_FILE: Record<string, unknown> = {
+	url: DEFAULT_ENDPOINT,
+	apiKey: null,
+	headers: null,
+	tools: null,
+	timeoutMs: DEFAULT_TIMEOUT_MS,
+	protocolVersion: DEFAULT_PROTOCOL_VERSION,
+	maxBytes: DEFAULT_MAX_BYTES,
+	maxLines: DEFAULT_MAX_LINES,
+};
 
 const CLIENT_INFO = {
 	name: "pi-firecrawl-mcp-extension",
@@ -373,13 +383,16 @@ function parseConfig(raw: unknown, pathHint: string): FirecrawlMcpConfig {
 
 function loadConfig(configPath: string | undefined): FirecrawlMcpConfig | null {
 	const candidates: string[] = [];
+	const envConfig = process.env.FIRECRAWL_MCP_CONFIG;
 	if (configPath) {
 		candidates.push(resolveConfigPath(configPath));
-	} else if (process.env.FIRECRAWL_MCP_CONFIG) {
-		candidates.push(resolveConfigPath(process.env.FIRECRAWL_MCP_CONFIG));
+	} else if (envConfig) {
+		candidates.push(resolveConfigPath(envConfig));
 	} else {
-		candidates.push(join(process.cwd(), ".pi", "extensions", "firecrawl-mcp.json"));
-		candidates.push(join(homedir(), ".pi", "agent", "extensions", "firecrawl-mcp.json"));
+		const projectConfigPath = join(process.cwd(), ".pi", "extensions", "firecrawl-mcp.json");
+		const globalConfigPath = join(homedir(), ".pi", "agent", "extensions", "firecrawl-mcp.json");
+		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+		candidates.push(projectConfigPath, globalConfigPath);
 	}
 
 	for (const candidate of candidates) {
@@ -397,6 +410,19 @@ function loadConfig(configPath: string | undefined): FirecrawlMcpConfig | null {
 	}
 
 	return null;
+}
+
+function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string): void {
+	if (existsSync(projectConfigPath) || existsSync(globalConfigPath)) {
+		return;
+	}
+	try {
+		mkdirSync(dirname(globalConfigPath), { recursive: true });
+		writeFileSync(globalConfigPath, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, "utf-8");
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`[pi-firecrawl-mcp] Failed to write ${globalConfigPath}: ${message}`);
+	}
 }
 
 function resolveEndpoint(baseUrl: string, apiKey?: string): string {
@@ -834,6 +860,8 @@ export {
 	normalizeCrawlArgs,
 	resolveEffectiveLimits,
 	resolveEndpoint,
+	ensureDefaultConfigFile,
+	DEFAULT_CONFIG_FILE,
 };
 
 export default function piFirecrawlMcp(pi: ExtensionAPI) {

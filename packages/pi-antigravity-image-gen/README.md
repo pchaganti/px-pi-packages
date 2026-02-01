@@ -89,6 +89,8 @@ Create a JSON config file (project overrides global):
 **Global**: `~/.pi/agent/extensions/antigravity-image-gen.json`
 **Project**: `<repo>/.pi/extensions/antigravity-image-gen.json`
 
+If neither exists, the extension writes a default config to the global path with `save` set to `none`.
+
 ```json
 {
   "save": "global"

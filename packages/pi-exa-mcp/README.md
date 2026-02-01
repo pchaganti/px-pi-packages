@@ -104,13 +104,15 @@ Config files are loaded in order (first match wins):
 3. `./.pi/extensions/exa-mcp.json` (project-level)
 4. `~/.pi/agent/extensions/exa-mcp.json` (global)
 
+If none exist, the extension writes a default config to the global path with `apiKey` set to `null`.
+
 ### Config File Format
 
 ```json
 {
   "url": "https://mcp.exa.ai/mcp",
-  "tools": ["web_search_exa", "get_code_context_exa"],
-  "apiKey": "your_api_key",
+  "tools": null,
+  "apiKey": null,
   "timeoutMs": 30000,
   "protocolVersion": "2025-06-18",
   "maxBytes": 51200,

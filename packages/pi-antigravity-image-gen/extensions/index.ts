@@ -32,10 +32,10 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { StringEnum } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { type Static, Type } from "@sinclair/typebox";
@@ -52,6 +52,7 @@ type AspectRatio = (typeof ASPECT_RATIOS)[number];
 
 const DEFAULT_ASPECT_RATIO: AspectRatio = "1:1";
 const DEFAULT_SAVE_MODE = "none";
+const DEFAULT_CONFIG_FILE: ExtensionConfig = { save: DEFAULT_SAVE_MODE };
 
 const SAVE_MODES = ["none", "project", "global", "custom"] as const;
 type SaveMode = (typeof SAVE_MODES)[number];
@@ -241,9 +242,25 @@ function readConfigFile(path: string): ExtensionConfig {
 }
 
 function loadConfig(cwd: string): ExtensionConfig {
-	const globalConfig = readConfigFile(join(homedir(), ".pi", "agent", "extensions", "antigravity-image-gen.json"));
-	const projectConfig = readConfigFile(join(cwd, ".pi", "extensions", "antigravity-image-gen.json"));
+	const globalPath = join(homedir(), ".pi", "agent", "extensions", "antigravity-image-gen.json");
+	const projectPath = join(cwd, ".pi", "extensions", "antigravity-image-gen.json");
+	ensureDefaultConfigFile(projectPath, globalPath);
+	const globalConfig = readConfigFile(globalPath);
+	const projectConfig = readConfigFile(projectPath);
 	return { ...globalConfig, ...projectConfig };
+}
+
+function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string): void {
+	if (existsSync(projectConfigPath) || existsSync(globalConfigPath)) {
+		return;
+	}
+	try {
+		mkdirSync(dirname(globalConfigPath), { recursive: true });
+		writeFileSync(globalConfigPath, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, "utf-8");
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`[pi-antigravity-image-gen] Failed to write ${globalConfigPath}: ${message}`);
+	}
 }
 
 function resolveSaveConfig(params: ToolParams, cwd: string): SaveConfig {
@@ -534,7 +551,7 @@ async function getImageQuota(accessToken: string, projectId: string): Promise<Qu
 // Extension entry point
 // ---------------------------------------------------------------------------
 
-export { buildRequest, parseOAuthCredentials, resolveSaveConfig };
+export { buildRequest, parseOAuthCredentials, resolveSaveConfig, ensureDefaultConfigFile, DEFAULT_CONFIG_FILE };
 
 export default function antigravityImageGen(pi: ExtensionAPI) {
 	// Tool: generate_image

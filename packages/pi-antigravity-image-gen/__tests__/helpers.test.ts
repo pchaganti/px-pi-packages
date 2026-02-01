@@ -1,5 +1,14 @@
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildRequest, parseOAuthCredentials, resolveSaveConfig } from "../extensions/index.js";
+import {
+	buildRequest,
+	DEFAULT_CONFIG_FILE,
+	ensureDefaultConfigFile,
+	parseOAuthCredentials,
+	resolveSaveConfig,
+} from "../extensions/index.js";
 
 describe("pi-antigravity-image-gen helpers", () => {
 	it("parses OAuth credentials", () => {
@@ -50,5 +59,17 @@ describe("pi-antigravity-image-gen helpers", () => {
 
 		Date.now = originalNow;
 		Math.random = originalRandom;
+	});
+
+	it("writes default config when none exists", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-antigravity-config-"));
+		const projectConfigPath = join(base, "project", ".pi", "extensions", "antigravity-image-gen.json");
+		const globalConfigPath = join(base, "global", "extensions", "antigravity-image-gen.json");
+
+		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+
+		expect(existsSync(globalConfigPath)).toBe(true);
+		const raw = readFileSync(globalConfigPath, "utf-8");
+		expect(JSON.parse(raw)).toEqual(DEFAULT_CONFIG_FILE);
 	});
 });
