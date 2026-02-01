@@ -111,7 +111,7 @@ If none exist, the extension writes a default config to the global path with `ap
 ```json
 {
   "url": "https://mcp.exa.ai/mcp",
-  "tools": null,
+  "tools": ["web_search_exa", "get_code_context_exa"],
   "apiKey": null,
   "timeoutMs": 30000,
   "protocolVersion": "2025-06-18",

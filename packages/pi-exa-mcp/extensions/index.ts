@@ -48,7 +48,7 @@ const DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 const DEFAULT_CONFIG_FILE: Record<string, unknown> = {
 	url: DEFAULT_ENDPOINT,
 	apiKey: null,
-	tools: null,
+	tools: ["web_search_exa", "get_code_context_exa"],
 	timeoutMs: DEFAULT_TIMEOUT_MS,
 	protocolVersion: DEFAULT_PROTOCOL_VERSION,
 	maxBytes: DEFAULT_MAX_BYTES,

@@ -44,7 +44,7 @@ const DEFAULT_CONFIG_FILE: Record<string, unknown> = {
 	url: DEFAULT_ENDPOINT,
 	apiKey: null,
 	headers: null,
-	tools: null,
+	tools: ["firecrawl_scrape", "firecrawl_map"],
 	timeoutMs: DEFAULT_TIMEOUT_MS,
 	protocolVersion: DEFAULT_PROTOCOL_VERSION,
 	maxBytes: DEFAULT_MAX_BYTES,

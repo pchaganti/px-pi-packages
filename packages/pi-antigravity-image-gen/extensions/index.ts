@@ -52,7 +52,7 @@ type AspectRatio = (typeof ASPECT_RATIOS)[number];
 
 const DEFAULT_ASPECT_RATIO: AspectRatio = "1:1";
 const DEFAULT_SAVE_MODE = "none";
-const DEFAULT_CONFIG_FILE: ExtensionConfig = { save: DEFAULT_SAVE_MODE };
+const DEFAULT_CONFIG_FILE: ExtensionConfig = { save: "global" };
 
 const SAVE_MODES = ["none", "project", "global", "custom"] as const;
 type SaveMode = (typeof SAVE_MODES)[number];

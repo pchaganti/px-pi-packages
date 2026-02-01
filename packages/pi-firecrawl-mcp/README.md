@@ -202,7 +202,7 @@ If none exist, the extension writes a default config to the global path with `ap
 {
   "url": "https://mcp.firecrawl.dev/v2/mcp",
   "apiKey": null,
-  "tools": null,
+  "tools": ["firecrawl_scrape", "firecrawl_map"],
   "headers": null,
   "timeoutMs": 30000,
   "protocolVersion": "2025-06-18",
