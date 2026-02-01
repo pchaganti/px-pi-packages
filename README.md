@@ -16,6 +16,8 @@ Pi packages can include extensions, skills, prompt templates, and themes. See th
 
 Each package has its own README with setup instructions, usage, and configuration details.
 
+Security notes and dependency audit status are tracked in `SECURITY.md`.
+
 ## Install All
 
 Install every package in this repo with a single command:
