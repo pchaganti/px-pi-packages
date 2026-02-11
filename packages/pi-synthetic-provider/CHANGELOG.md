@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-02-11
+
+### Added
+- Redesigned `/synthetic-models` as an interactive, bordered overlay catalog instead of raw terminal log output
+- Added direct model switching from the catalog: pressing `Enter` now sets the active model immediately
+- Added responsive overlay sizing/placement for smaller terminals (dynamic width/height/offset behavior)
+- Added datacenter location display with full country names (for example, `United States (US)`)
+
+### Changed
+- Prioritized Synthetic-hosted models in the catalog sort order (shown before other providers)
+- Improved catalog row alignment with fixed-width columns and clearer headers
+
+### Fixed
+- Fixed `/synthetic-models` overlay rendering clashes with the footer/status area caused by raw `console.log` output
+- Fixed details panel crash when `context_length` or `max_output_length` is missing in API responses
+- Clarified cache pricing label in table header as `R-Cache`
+
 ## [1.1.2] - 2026-02-11
 
 ### Added

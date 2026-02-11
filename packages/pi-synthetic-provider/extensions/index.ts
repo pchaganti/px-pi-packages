@@ -50,7 +50,13 @@
  *   curl -s https://api.synthetic.new/openai/v1/models | jq '.data[] | select(.always_on == true) | {id, name, provider, context_length, max_output_length, pricing}'
  */
 
-import type { ExtensionAPI, ExtensionContext, ProviderModelConfig } from "@mariozechner/pi-coding-agent";
+import {
+	DynamicBorder,
+	type ExtensionAPI,
+	type ExtensionContext,
+	type ProviderModelConfig,
+} from "@mariozechner/pi-coding-agent";
+import { Box, Container, type SelectItem, SelectList, type SelectListTheme, Spacer, Text } from "@mariozechner/pi-tui";
 
 // =============================================================================
 // Types
@@ -116,6 +122,91 @@ function parsePrice(price?: string): number {
 	const value = parseFloat(match[0]);
 	// Per-token values are tiny (e.g., 0.00000055); per-million values are >= 0.001
 	return value < 0.001 ? value * 1_000_000 : value;
+}
+
+function formatPrice(price?: string): string {
+	return `$${parsePrice(price).toFixed(2)}`;
+}
+
+function formatContextTokens(tokens?: number): string {
+	if (!tokens || tokens <= 0) return "n/a";
+	return `${Math.round(tokens / 1024)}K`;
+}
+
+function formatTokenCount(tokens?: number): string {
+	if (!tokens || tokens <= 0) return "n/a";
+	return `${tokens.toLocaleString()} tokens`;
+}
+
+function truncateWithEllipsis(text: string, maxWidth: number): string {
+	if (maxWidth <= 0) return "";
+	if (text.length <= maxWidth) return text;
+	if (maxWidth === 1) return "…";
+	return `${text.slice(0, maxWidth - 1)}…`;
+}
+
+const REGION_DISPLAY_NAMES = (() => {
+	try {
+		return new Intl.DisplayNames(["en"], { type: "region" });
+	} catch {
+		return undefined;
+	}
+})();
+
+function formatCountryCode(countryCode: string): string {
+	const code = countryCode.trim().toUpperCase();
+	if (!code) return "";
+	const name = REGION_DISPLAY_NAMES?.of(code);
+	if (!name || name === code) return code;
+	return `${name} (${code})`;
+}
+
+function formatDatacenters(datacenters?: { country_code: string }[]): string {
+	if (!datacenters || datacenters.length === 0) return "n/a";
+	const names = datacenters.map((dc) => formatCountryCode(dc.country_code)).filter((name) => name.length > 0);
+	return names.length > 0 ? names.join(", ") : "n/a";
+}
+
+function getModelCapabilities(model: SyntheticModel): string[] {
+	const caps: string[] = [];
+	if (model.input_modalities?.includes("image")) caps.push("vision");
+	if (model.supported_features?.includes("reasoning")) caps.push("reason");
+	if (model.supported_features?.includes("tools")) caps.push("tools");
+	return caps;
+}
+
+function getProviderSortRank(provider?: string): number {
+	return provider === "synthetic" ? 0 : 1;
+}
+
+const CATALOG_PROVIDER_COL = 10;
+const CATALOG_MODEL_COL = 34;
+const CATALOG_CTX_COL = 5;
+const CATALOG_PRICE_COL = 7;
+const CATALOG_CAPS_COL = 18;
+
+function formatCatalogHeader(): string {
+	const provider = "Provider".padEnd(CATALOG_PROVIDER_COL);
+	const model = "Model".padEnd(CATALOG_MODEL_COL);
+	const ctx = "Ctx".padStart(CATALOG_CTX_COL);
+	const input = "In".padStart(CATALOG_PRICE_COL);
+	const output = "Out".padStart(CATALOG_PRICE_COL);
+	const cache = "R-Cache".padStart(CATALOG_PRICE_COL);
+	const caps = "Caps".padEnd(CATALOG_CAPS_COL);
+	return `${provider} ${model} ${ctx} ${input} ${output} ${cache} ${caps}`;
+}
+
+function formatCatalogRow(model: SyntheticModel): string {
+	const providerRaw = model.provider || "unknown";
+	const provider = truncateWithEllipsis(providerRaw, CATALOG_PROVIDER_COL).padEnd(CATALOG_PROVIDER_COL);
+	const modelId = truncateWithEllipsis(model.id, CATALOG_MODEL_COL).padEnd(CATALOG_MODEL_COL);
+	const ctx = formatContextTokens(model.context_length).padStart(CATALOG_CTX_COL);
+	const input = formatPrice(model.pricing?.prompt).padStart(CATALOG_PRICE_COL);
+	const output = formatPrice(model.pricing?.completion).padStart(CATALOG_PRICE_COL);
+	const cache = formatPrice(model.pricing?.input_cache_reads).padStart(CATALOG_PRICE_COL);
+	const capsRaw = getModelCapabilities(model).join("/") || "-";
+	const caps = truncateWithEllipsis(capsRaw, CATALOG_CAPS_COL).padEnd(CATALOG_CAPS_COL);
+	return `${provider} ${modelId} ${ctx} ${input} ${output} ${cache} ${caps}`;
 }
 
 /**
@@ -234,9 +325,9 @@ function getFallbackModels(): ProviderModelConfig[] {
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 0.30,
-				output: 1.20,
-				cacheRead: 0.30,
+				input: 0.3,
+				output: 1.2,
+				cacheRead: 0.3,
 				cacheWrite: 0,
 			},
 			contextWindow: 196608,
@@ -368,6 +459,10 @@ export default function (pi: ExtensionAPI) {
 				console.log("[Synthetic Provider] /synthetic-models requires interactive mode");
 				return;
 			}
+			if (!ctx.isIdle()) {
+				ctx.ui.notify("Wait for the current response to finish before switching models", "warning");
+				return;
+			}
 
 			ctx.ui.notify("Fetching model catalog from Synthetic API...", "info");
 
@@ -381,92 +476,204 @@ export default function (pi: ExtensionAPI) {
 				}
 
 				const response = await fetch(SYNTHETIC_MODELS_ENDPOINT, { headers });
-
 				if (!response.ok) {
 					throw new Error(`API error: ${response.status} ${response.statusText}`);
 				}
 
 				const data = (await response.json()) as SyntheticModelsResponse;
-
-				// Filter for always-on models
 				const models = data.data.filter((m) => m.always_on);
 
-				// Sort by provider then by name
+				// Sort with Synthetic-hosted models first, then provider/name
 				models.sort((a, b) => {
+					const rankCompare = getProviderSortRank(a.provider) - getProviderSortRank(b.provider);
+					if (rankCompare !== 0) return rankCompare;
+
 					const providerCompare = (a.provider || "unknown").localeCompare(b.provider || "unknown");
 					if (providerCompare !== 0) return providerCompare;
-					return a.name.localeCompare(b.name);
+
+					return (a.name || a.id).localeCompare(b.name || b.id);
 				});
 
-				// Build table output (rendered in log area)
-				ctx.ui.notify("Displaying model catalog in logs", "info");
+				if (models.length === 0) {
+					ctx.ui.notify("No always-on models returned by Synthetic API", "warning");
+					return;
+				}
 
-				const W = 90;
-				console.log(`\n${"=".repeat(W)}`);
-				console.log("  SYNTHETIC MODEL CATALOG");
-				console.log(`  ${models.length} models available`);
-				console.log("=".repeat(W));
-
-				// Group by provider
-				const byProvider = new Map<string, SyntheticModel[]>();
-				for (const m of models) {
+				const itemToModel = new Map<string, SyntheticModel>();
+				const items: SelectItem[] = models.map((m) => {
 					const provider = m.provider || "unknown";
-					let bucket = byProvider.get(provider);
-					if (!bucket) {
-						bucket = [];
-						byProvider.set(provider, bucket);
-					}
-					bucket.push(m);
-				}
+					const itemKey = `${provider}:${m.id}`;
+					itemToModel.set(itemKey, m);
 
-				// Display by provider
-				for (const [provider, providerModels] of byProvider) {
-					console.log("");
-					console.log(`  ${provider.toUpperCase()} (${providerModels.length})`);
-					console.log("-".repeat(W));
+					return {
+						value: itemKey,
+						label: formatCatalogRow(m),
+					};
+				});
 
-					// Table header
-					const hdr = `  ${"Model".padEnd(44)}${"Ctx".padStart(5)}${"Input".padStart(8)}${"Output".padStart(8)}${"R-Cache".padStart(8)}  Caps`;
-					console.log(hdr);
-					console.log("-".repeat(W));
+				let overlayRows = 44;
+				let overlayCols = 140;
 
-					for (const m of providerModels) {
-						const id = m.id.length > 42 ? `${m.id.substring(0, 39)}...` : m.id;
-						const context = `${(m.context_length / 1024).toFixed(0)}K`;
-						const inputCost = `$${parsePrice(m.pricing?.prompt).toFixed(2)}`;
-						const outputCost = `$${parsePrice(m.pricing?.completion).toFixed(2)}`;
-						const cacheCost = `$${parsePrice(m.pricing?.input_cache_reads).toFixed(2)}`;
+				await ctx.ui.custom<void>(
+					(tui, theme, _keybindings, done) => {
+						overlayRows = tui.terminal.rows;
+						overlayCols = tui.terminal.columns;
 
-						const caps: string[] = [];
-						if (m.input_modalities?.includes("image")) caps.push("vision");
-						if (m.supported_features?.includes("reasoning")) caps.push("reason");
-						if (m.supported_features?.includes("tools")) caps.push("tools");
-						const capsStr = caps.length > 0 ? caps.join(", ") : "";
+						const selectTheme: SelectListTheme = {
+							selectedPrefix: (text) => theme.fg("accent", text),
+							selectedText: (text) => theme.fg("accent", text),
+							description: (text) => theme.fg("muted", text),
+							scrollInfo: (text) => theme.fg("dim", text),
+							noMatch: (text) => theme.fg("warning", text),
+						};
 
-						console.log(
-							`  ${id.padEnd(44)}${context.padStart(5)}${inputCost.padStart(8)}${outputCost.padStart(8)}${cacheCost.padStart(8)}  ${capsStr}`,
+						const listMaxVisible = Math.max(6, Math.min(14, overlayRows - 24));
+						const selectList = new SelectList(items, Math.min(items.length, listMaxVisible), selectTheme);
+						const detailsText = new Text("", 1, 0);
+
+						const updateDetails = (model: SyntheticModel | undefined) => {
+							if (!model) {
+								detailsText.setText(theme.fg("muted", "No model selected"));
+								return;
+							}
+
+							const provider = model.provider || "unknown";
+							const caps = getModelCapabilities(model);
+							const datacenters = formatDatacenters(model.datacenters);
+
+							const lines = [
+								theme.fg("accent", theme.bold("Selected model")),
+								`${theme.fg("muted", "ID:")} ${model.id}`,
+								`${theme.fg("muted", "Provider:")} ${provider}`,
+								`${theme.fg("muted", "Context:")} ${formatContextTokens(model.context_length)} (${formatTokenCount(model.context_length)})`,
+								`${theme.fg("muted", "Max output:")} ${formatContextTokens(model.max_output_length)} (${formatTokenCount(model.max_output_length)})`,
+								`${theme.fg("muted", "Pricing ($/M):")} in ${formatPrice(model.pricing?.prompt)} · out ${formatPrice(model.pricing?.completion)} · cache ${formatPrice(model.pricing?.input_cache_reads)}`,
+								`${theme.fg("muted", "Capabilities:")} ${caps.length > 0 ? caps.join(", ") : "none"}`,
+								`${theme.fg("muted", "Datacenters:")} ${datacenters}`,
+								"",
+								`${theme.fg("muted", "Use with:")} synthetic:${model.id}`,
+							];
+							detailsText.setText(lines.join("\n"));
+						};
+
+						const initial = items[0];
+						updateDetails(initial ? itemToModel.get(initial.value) : undefined);
+
+						selectList.onSelectionChange = (item) => {
+							updateDetails(itemToModel.get(item.value));
+							tui.requestRender();
+						};
+
+						selectList.onSelect = (item) => {
+							void (async () => {
+								const selected = itemToModel.get(item.value);
+								if (!selected) return;
+
+								const modelRef = `synthetic:${selected.id}`;
+								const registryModel = ctx.modelRegistry.find("synthetic", selected.id);
+								if (!registryModel) {
+									ctx.ui.notify(
+										`Model ${modelRef} is not currently registered in pi (possibly unsupported for tools)`,
+										"warning",
+									);
+									return;
+								}
+
+								const switched = await pi.setModel(registryModel);
+								if (!switched) {
+									ctx.ui.notify(`No API key available for ${modelRef}`, "error");
+									return;
+								}
+
+								ctx.ui.notify(`Switched model to ${modelRef}`, "info");
+								done(undefined);
+							})();
+						};
+
+						selectList.onCancel = () => done(undefined);
+
+						const container = new Container();
+						container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+						container.addChild(new Text(theme.fg("accent", theme.bold("Synthetic Model Catalog")), 1, 0));
+						container.addChild(
+							new Text(
+								theme.fg(
+									"muted",
+									`${models.length} always-on models · prices shown are $/million tokens · R-Cache = input cache read`,
+								),
+								1,
+								0,
+							),
 						);
-					}
+						container.addChild(new Spacer(1));
+						container.addChild(new Text(theme.fg("dim", formatCatalogHeader()), 1, 0));
+						container.addChild(new DynamicBorder((s: string) => theme.fg("muted", s)));
+						container.addChild(selectList);
+						container.addChild(new DynamicBorder((s: string) => theme.fg("muted", s)));
+						container.addChild(new Spacer(1));
+						container.addChild(detailsText);
+						container.addChild(new Spacer(1));
+						container.addChild(
+							new Text(theme.fg("dim", "↑↓ navigate · Enter switches active model · Esc closes"), 1, 0),
+						);
+						container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 
-					// Show datacenter locations for Synthetic-hosted models
-					const syntheticWithDC = providerModels.filter((m) => m.provider === "synthetic" && m.datacenters?.length);
-					if (syntheticWithDC.length > 0) {
-						console.log("");
-						console.log("  Datacenter Locations (Synthetic-hosted)");
-						console.log("-".repeat(W));
-						for (const m of syntheticWithDC) {
-							const dcList = m.datacenters!.map((dc) => dc.country_code).join(", ");
-							console.log(`  ${m.id.padEnd(42)}  ${dcList}`);
-						}
-					}
-				}
+						const panel = new Box(0, 0, (s: string) => theme.bg("customMessageBg", s));
+						panel.addChild(container);
 
-				console.log("");
-				console.log("=".repeat(W));
-				console.log("  Prices are $/million tokens. R-Cache = input cache read cost.");
-				console.log("  Use synthetic:<model-id> to select a model");
-				console.log("  Example: pi --model synthetic:hf:moonshotai/Kimi-K2.5");
-				console.log(`${"=".repeat(W)}\n`);
+						return {
+							render: (width) => panel.render(width),
+							invalidate: () => panel.invalidate(),
+							handleInput: (data) => {
+								selectList.handleInput(data);
+								tui.requestRender();
+							},
+						};
+					},
+					{
+						overlay: true,
+						overlayOptions: () => {
+							const width = overlayCols < 120 ? "98%" : "96%";
+
+							if (overlayRows < 34) {
+								return {
+									width: "100%",
+									maxHeight: "94%",
+									anchor: "center" as const,
+									margin: 0,
+								};
+							}
+
+							if (overlayRows < 44) {
+								return {
+									width,
+									maxHeight: "88%",
+									anchor: "bottom-center" as const,
+									offsetY: -4,
+									margin: 1,
+								};
+							}
+
+							if (overlayRows < 54) {
+								return {
+									width,
+									maxHeight: "82%",
+									anchor: "bottom-center" as const,
+									offsetY: -9,
+									margin: 1,
+								};
+							}
+
+							return {
+								width,
+								maxHeight: "78%",
+								anchor: "bottom-center" as const,
+								offsetY: -14,
+								margin: 1,
+							};
+						},
+					},
+				);
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				ctx.ui.notify(`Failed to fetch models: ${errorMessage}`, "error");
