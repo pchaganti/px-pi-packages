@@ -31,7 +31,7 @@
       "./packages/pi-synthetic-provider/extensions/index.ts",
       "./packages/pi-antigravity-image-gen/extensions/index.ts",
       "./packages/pi-exa-mcp/extensions/index.ts",
-      "./packages/pi-firecrawl-mcp/extensions/index.ts",
+      "./packages/pi-firecrawl/extensions/index.ts",
       "./packages/pi-ancestor-discovery/extensions/index.ts",
       "./packages/pi-cut-stack/extensions/index.ts"
     ]

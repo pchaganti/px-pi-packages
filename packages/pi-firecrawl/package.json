@@ -1,7 +1,7 @@
 {
-  "name": "@benvargas/pi-firecrawl-mcp",
-  "version": "1.1.0",
-  "description": "Firecrawl MCP tools for pi - Web scraping, crawling, and data extraction via Firecrawl's Model Context Protocol",
+  "name": "@benvargas/pi-firecrawl",
+  "version": "1.0.0",
+  "description": "Firecrawl tools for pi - Web scraping, crawling, and data extraction via Firecrawl's REST API",
   "keywords": [
     "pi",
     "pi-package",
@@ -9,11 +9,9 @@
     "pi-coding-agent",
     "ai",
     "firecrawl",
-    "mcp",
     "web-scraping",
     "crawling",
-    "data-extraction",
-    "model-context-protocol"
+    "data-extraction"
   ],
   "type": "module",
   "files": [
@@ -34,12 +32,12 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ben-vargas/pi-packages.git",
-    "directory": "packages/pi-firecrawl-mcp"
+    "directory": "packages/pi-firecrawl"
   },
   "author": "Ben Vargas",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/ben-vargas/pi-packages/issues"
   },
-  "homepage": "https://github.com/ben-vargas/pi-packages/tree/main/packages/pi-firecrawl-mcp#readme"
+  "homepage": "https://github.com/ben-vargas/pi-packages/tree/main/packages/pi-firecrawl#readme"
 }

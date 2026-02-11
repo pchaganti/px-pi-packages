@@ -11,7 +11,7 @@ Pi packages can include extensions, skills, prompt templates, and themes. See th
 | [@benvargas/pi-synthetic-provider](./packages/pi-synthetic-provider/) | Extension | [Synthetic](https://synthetic.new) model provider (Kimi, GLM, MiniMax, DeepSeek, Qwen) |
 | [@benvargas/pi-antigravity-image-gen](./packages/pi-antigravity-image-gen/) | Extension | Antigravity image generation (Gemini 3 Pro, inline rendering) |
 | [@benvargas/pi-exa-mcp](./packages/pi-exa-mcp/) | Extension | Exa MCP tools — web search + code context |
-| [@benvargas/pi-firecrawl-mcp](./packages/pi-firecrawl-mcp/) | Extension | Firecrawl MCP tools — scrape, crawl, extract |
+| [@benvargas/pi-firecrawl](./packages/pi-firecrawl/) | Extension | Firecrawl tools — scrape, map, search |
 | [@benvargas/pi-ancestor-discovery](./packages/pi-ancestor-discovery/) | Extension | Ancestor discovery for skills, prompts, themes |
 | [@benvargas/pi-cut-stack](./packages/pi-cut-stack/) | Extension | Cut-stack editor shortcuts |
 
@@ -50,7 +50,7 @@ Use the specific command from the table above for each package.
 pi install npm:@benvargas/pi-synthetic-provider
 pi install npm:@benvargas/pi-antigravity-image-gen
 pi install npm:@benvargas/pi-exa-mcp
-pi install npm:@benvargas/pi-firecrawl-mcp
+pi install npm:@benvargas/pi-firecrawl
 pi install npm:@benvargas/pi-ancestor-discovery
 pi install npm:@benvargas/pi-cut-stack
 ```
@@ -78,7 +78,7 @@ pi remove npm:@benvargas/<package-name>
 pi remove npm:@benvargas/pi-synthetic-provider
 pi remove npm:@benvargas/pi-antigravity-image-gen
 pi remove npm:@benvargas/pi-exa-mcp
-pi remove npm:@benvargas/pi-firecrawl-mcp
+pi remove npm:@benvargas/pi-firecrawl
 pi remove npm:@benvargas/pi-ancestor-discovery
 pi remove npm:@benvargas/pi-cut-stack
 ```
