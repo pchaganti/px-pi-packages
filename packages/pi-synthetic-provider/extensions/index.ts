@@ -73,6 +73,7 @@ interface SyntheticModel {
 	supported_features?: string[];
 	always_on?: boolean;
 	provider?: string;
+	datacenters?: { country_code: string }[];
 }
 
 interface SyntheticModelsResponse {
@@ -445,6 +446,18 @@ export default function (pi: ExtensionAPI) {
 						console.log(
 							`  ${id.padEnd(44)}${context.padStart(5)}${inputCost.padStart(8)}${outputCost.padStart(8)}${cacheCost.padStart(8)}  ${capsStr}`,
 						);
+					}
+
+					// Show datacenter locations for Synthetic-hosted models
+					const syntheticWithDC = providerModels.filter((m) => m.provider === "synthetic" && m.datacenters?.length);
+					if (syntheticWithDC.length > 0) {
+						console.log("");
+						console.log("  Datacenter Locations (Synthetic-hosted)");
+						console.log("-".repeat(W));
+						for (const m of syntheticWithDC) {
+							const dcList = m.datacenters!.map((dc) => dc.country_code).join(", ");
+							console.log(`  ${m.id.padEnd(42)}  ${dcList}`);
+						}
 					}
 				}
 
