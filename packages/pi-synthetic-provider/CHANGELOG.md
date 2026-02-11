@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-02-11
+
+### Added
+- Added `/synthetic-quota` command to display Synthetic API quota usage from `/v2/quotas`
+- Added a themed interactive quota overlay with progress bars and color-coded usage states
+- Added helper utilities for quota display formatting and usage coloring
+
 ## [1.1.3] - 2026-02-11
 
 ### Added
