@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-02-18
+
 ### Fixed
 - Updated `/synthetic-quota` parsing to support Synthetic’s current `/v2/quotas` response key `freeToolCalls` in addition to older `toolCallDiscounts` payloads.
 
