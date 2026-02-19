@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-02-19
+
+### Fixed
+- Adjusted `/synthetic-models` overlay anchoring/offset so the modal opens higher (top-centered), matching `/synthetic-quota` behavior on typical terminal sizes.
+
 ## [1.1.5] - 2026-02-18
 
 ### Fixed

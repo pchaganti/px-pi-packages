@@ -731,8 +731,8 @@ export default function (pi: ExtensionAPI) {
 								return {
 									width,
 									maxHeight: "88%",
-									anchor: "bottom-center" as const,
-									offsetY: -4,
+									anchor: "top-center" as const,
+									offsetY: 2,
 									margin: 1,
 								};
 							}
@@ -740,18 +740,18 @@ export default function (pi: ExtensionAPI) {
 							if (overlayRows < 54) {
 								return {
 									width,
-									maxHeight: "82%",
-									anchor: "bottom-center" as const,
-									offsetY: -9,
+									maxHeight: "84%",
+									anchor: "top-center" as const,
+									offsetY: 3,
 									margin: 1,
 								};
 							}
 
 							return {
 								width,
-								maxHeight: "78%",
-								anchor: "bottom-center" as const,
-								offsetY: -14,
+								maxHeight: "80%",
+								anchor: "top-center" as const,
+								offsetY: 4,
 								margin: 1,
 							};
 						},
