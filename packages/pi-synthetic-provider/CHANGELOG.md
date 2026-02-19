@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.7] - 2026-02-19
+
+### Changed
+- Refactored monolithic `extensions/index.ts` (945 lines) into focused modules: `types.ts`, `config.ts`, `formatting.ts`, `models.ts`, `auth.ts`, `quota.ts`, and `commands/` handlers
+- Main `index.ts` is now a thin orchestrator that re-exports public symbols and registers the provider, events, and commands
+
+### Added
+- New `commands.test.ts` with 15 tests covering interactive command handler flows: guard clauses, TUI overlay rendering, model selection/switch, cancel-close, and error handling
+- Total test count increased from 48 to 63 across the project
+
 ## [1.1.6] - 2026-02-19
 
 ### Fixed
