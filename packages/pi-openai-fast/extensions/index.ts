@@ -1,3 +1,15 @@
+/**
+ * OpenAI fast mode for pi.
+ *
+ * `/fast` and `--fast` toggle `service_tier=priority` for configured models.
+ * This extension does not change the selected model, thinking level, tools, or prompts.
+ *
+ * Startup state comes from `pi-openai-fast.json`, not resumed session history.
+ * Config precedence is project `.pi/extensions/pi-openai-fast.json` over
+ * global `~/.pi/agent/extensions/pi-openai-fast.json`.
+ *
+ * `supportedModels` controls which `provider/model-id` pairs receive the flag.
+ */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -5,7 +17,6 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 
 const FAST_COMMAND = "fast";
 const FAST_FLAG = "fast";
-const FAST_STATE_ENTRY = "pi-openai-fast.state";
 const FAST_CONFIG_BASENAME = "pi-openai-fast.json";
 const FAST_COMMAND_ARGS = ["on", "off", "status"] as const;
 const FAST_SERVICE_TIER = "priority";
@@ -121,24 +132,6 @@ function parseSupportedModels(value: unknown): FastSupportedModel[] | undefined 
 	return models;
 }
 
-function parseFastModeState(value: unknown): FastModeState | undefined {
-	if (!isRecord(value) || typeof value.active !== "boolean") {
-		return undefined;
-	}
-	return { active: value.active };
-}
-
-function getSavedFastModeState(ctx: ExtensionContext): FastModeState | undefined {
-	const entries = ctx.sessionManager.getBranch();
-	for (let i = entries.length - 1; i >= 0; i--) {
-		const entry = entries[i];
-		if (entry.type === "custom" && entry.customType === FAST_STATE_ENTRY) {
-			return parseFastModeState(entry.data);
-		}
-	}
-	return undefined;
-}
-
 function readConfigFile(filePath: string): FastConfigFile | null {
 	if (!existsSync(filePath)) {
 		return null;
@@ -251,9 +244,19 @@ function applyFastServiceTier(payload: unknown): unknown {
 
 export default function piOpenAIFast(pi: ExtensionAPI): void {
 	let state: FastModeState = { active: false };
+	let cachedConfig: ResolvedFastConfig | undefined;
+
+	function refreshConfig(ctx: ExtensionContext): ResolvedFastConfig {
+		cachedConfig = resolveFastConfig(getConfigCwd(ctx));
+		return cachedConfig;
+	}
+
+	function getConfig(ctx: ExtensionContext): ResolvedFastConfig {
+		return cachedConfig ?? refreshConfig(ctx);
+	}
 
 	function persistState(config: ResolvedFastConfig): void {
-		pi.appendEntry(FAST_STATE_ENTRY, state);
+		cachedConfig = { ...config, active: state.active };
 		if (!config.persistState) {
 			return;
 		}
@@ -262,7 +265,7 @@ export default function piOpenAIFast(pi: ExtensionAPI): void {
 	}
 
 	async function enableFastMode(ctx: ExtensionContext, options?: { notify?: boolean }): Promise<void> {
-		const config = resolveFastConfig(getConfigCwd(ctx));
+		const config = refreshConfig(ctx);
 		if (state.active) {
 			if (options?.notify !== false) {
 				ctx.ui.notify("Fast mode is already on.", "info");
@@ -279,7 +282,7 @@ export default function piOpenAIFast(pi: ExtensionAPI): void {
 	}
 
 	async function disableFastMode(ctx: ExtensionContext, options?: { notify?: boolean }): Promise<void> {
-		const config = resolveFastConfig(getConfigCwd(ctx));
+		const config = refreshConfig(ctx);
 		if (!state.active) {
 			if (options?.notify !== false) {
 				ctx.ui.notify("Fast mode is already off.", "info");
@@ -334,10 +337,7 @@ export default function piOpenAIFast(pi: ExtensionAPI): void {
 					await disableFastMode(ctx);
 					return;
 				case "status":
-					ctx.ui.notify(
-						describeCurrentState(ctx, state.active, resolveFastConfig(getConfigCwd(ctx)).supportedModels),
-						"info",
-					);
+					ctx.ui.notify(describeCurrentState(ctx, state.active, refreshConfig(ctx).supportedModels), "info");
 					return;
 				default:
 					ctx.ui.notify("Usage: /fast [on|off|status]", "error");
@@ -346,7 +346,7 @@ export default function piOpenAIFast(pi: ExtensionAPI): void {
 	});
 
 	pi.on("before_provider_request", (event, ctx) => {
-		const config = resolveFastConfig(getConfigCwd(ctx));
+		const config = getConfig(ctx);
 		if (!state.active || !isFastSupportedModel(ctx.model, config.supportedModels)) {
 			return;
 		}
@@ -354,11 +354,8 @@ export default function piOpenAIFast(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		const config = resolveFastConfig(getConfigCwd(ctx));
-		const savedState = getSavedFastModeState(ctx);
-		const persistedState =
-			config.persistState && typeof config.active === "boolean" ? { active: config.active } : undefined;
-		state = savedState ?? persistedState ?? { active: false };
+		const config = refreshConfig(ctx);
+		state = config.persistState && typeof config.active === "boolean" ? { active: config.active } : { active: false };
 
 		if (pi.getFlag(FAST_FLAG) === true) {
 			if (!state.active) {
@@ -369,7 +366,7 @@ export default function piOpenAIFast(pi: ExtensionAPI): void {
 			return;
 		}
 
-		if (!savedState && state.active) {
+		if (state.active) {
 			ctx.ui.notify(describeCurrentState(ctx, state.active, config.supportedModels), "info");
 		}
 	});
@@ -378,14 +375,12 @@ export default function piOpenAIFast(pi: ExtensionAPI): void {
 export const _test = {
 	FAST_COMMAND,
 	FAST_FLAG,
-	FAST_STATE_ENTRY,
 	FAST_CONFIG_BASENAME,
 	FAST_COMMAND_ARGS,
 	FAST_SERVICE_TIER,
 	DEFAULT_SUPPORTED_MODEL_KEYS,
 	DEFAULT_CONFIG_FILE,
 	getConfigPaths,
-	parseFastModeState,
 	parseSupportedModelKey,
 	parseSupportedModels,
 	readConfigFile,
