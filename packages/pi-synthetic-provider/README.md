@@ -72,7 +72,7 @@ pi --model synthetic
 
 ## Available Models
 
-Models are fetched dynamically. As of 2026-04-12, Synthetic provides:
+Models are fetched at startup from the [Synthetic models endpoint](https://dev.synthetic.new/docs/api/models). If the API is unreachable, the provider falls back to the following hardcoded defaults:
 
 | Model | ID | Reasoning | Vision | Context | Max Output |
 |-------|-----|-----------|--------|---------|------------|
@@ -82,7 +82,7 @@ Models are fetched dynamically. As of 2026-04-12, Synthetic provides:
 | **Nemotron 3 Super 120B** | `hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4` | Yes | No | 262K | 65K |
 | **GLM 5.1** | `hf:zai-org/GLM-5.1` | Yes | No | 196K | 65K |
 
-Run `/synthetic-models` inside pi for the full, current catalog.
+Run `/synthetic-models` inside pi for the live catalog.
 
 ## API Key Priority
 
