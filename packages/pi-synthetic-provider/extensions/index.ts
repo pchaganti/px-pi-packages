@@ -37,13 +37,12 @@
  *   # Use default model
  *   pi --model synthetic
  *
- * Supported Models (as of 2026-03-31):
+ * Supported Models (as of 2026-04-12):
  * - hf:moonshotai/Kimi-K2.5 (reasoning + vision)
  * - hf:nvidia/Kimi-K2.5-NVFP4 (reasoning + vision, NVIDIA FP4 variant)
- * - hf:MiniMaxAI/MiniMax-M2.1 (reasoning)
- * - hf:MiniMaxAI/MiniMax-M2.5 (reasoning + vision)
- * - hf:zai-org/GLM-5 (reasoning)
- * - hf:zai-org/GLM-4.7 (reasoning)
+ * - hf:MiniMaxAI/MiniMax-M2.5 (reasoning)
+ * - hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 (reasoning)
+ * - hf:zai-org/GLM-5.1 (reasoning)
  *
  * Note: Models are fetched dynamically from the API at session start, so the
  * available models list is always current.

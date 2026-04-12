@@ -78,14 +78,14 @@ export async function fetchSyntheticModels(apiKey?: string): Promise<ProviderMod
 /**
  * Fallback models if API fetch fails.
  * Data sourced from: curl https://api.synthetic.new/openai/v1/models
- * Last updated: 2026-03-31
+ * Last updated: 2026-04-12
  *
  * Pricing format: $/million tokens
  * Synthetic-hosted models:
- * - Kimi-K2.5 & NVFP4: $0.55 input, $2.19 output, 262K context
- * - MiniMax-M2.5: $0.60 input, $3.00 output, 191K context
- * - GLM-5: $1.00 input, $6.00 output, 192K context
- * - GLM-4.7: $0.55 input, $2.19 output, 202K context
+ * - Kimi-K2.5 & NVFP4: $0.45 input, $3.40 output, 262K context
+ * - MiniMax-M2.5: $0.40 input, $2.00 output, 191K context
+ * - Nemotron-3-Super-120B-A12B-NVFP4: $0.30 input, $1.00 output, 262K context
+ * - GLM-5.1: $1.00 input, $3.00 output, 196K context
  */
 export function getFallbackModels(): ProviderModelConfig[] {
 	return [
@@ -95,9 +95,9 @@ export function getFallbackModels(): ProviderModelConfig[] {
 			reasoning: true,
 			input: ["text", "image"],
 			cost: {
-				input: 0.55,
-				output: 2.19,
-				cacheRead: 0.55,
+				input: 0.45,
+				output: 3.4,
+				cacheRead: 0.45,
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
@@ -110,9 +110,9 @@ export function getFallbackModels(): ProviderModelConfig[] {
 			reasoning: true,
 			input: ["text", "image"],
 			cost: {
-				input: 0.55,
-				output: 2.19,
-				cacheRead: 0.55,
+				input: 0.45,
+				output: 3.4,
+				cacheRead: 0.45,
 				cacheWrite: 0,
 			},
 			contextWindow: 262144,
@@ -120,29 +120,14 @@ export function getFallbackModels(): ProviderModelConfig[] {
 			compat: SYNTHETIC_COMPAT,
 		},
 		{
-			id: "hf:MiniMaxAI/MiniMax-M2.1",
-			name: "MiniMaxAI/MiniMax-M2.1",
-			reasoning: true,
-			input: ["text"],
-			cost: {
-				input: 0.3,
-				output: 1.2,
-				cacheRead: 0.3,
-				cacheWrite: 0,
-			},
-			contextWindow: 196608,
-			maxTokens: 65536,
-			compat: SYNTHETIC_COMPAT,
-		},
-		{
 			id: "hf:MiniMaxAI/MiniMax-M2.5",
 			name: "MiniMaxAI/MiniMax-M2.5",
 			reasoning: true,
-			input: ["text", "image"],
+			input: ["text"],
 			cost: {
-				input: 0.6,
-				output: 3,
-				cacheRead: 0.6,
+				input: 0.4,
+				output: 2,
+				cacheRead: 0.4,
 				cacheWrite: 0,
 			},
 			contextWindow: 191488,
@@ -150,32 +135,32 @@ export function getFallbackModels(): ProviderModelConfig[] {
 			compat: SYNTHETIC_COMPAT,
 		},
 		{
-			id: "hf:zai-org/GLM-5",
-			name: "zai-org/GLM-5",
+			id: "hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
+			name: "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 1,
-				output: 6,
-				cacheRead: 1,
+				input: 0.3,
+				output: 1,
+				cacheRead: 0.3,
 				cacheWrite: 0,
 			},
-			contextWindow: 196608,
+			contextWindow: 262144,
 			maxTokens: 65536,
 			compat: SYNTHETIC_COMPAT,
 		},
 		{
-			id: "hf:zai-org/GLM-4.7",
-			name: "zai-org/GLM-4.7",
+			id: "hf:zai-org/GLM-5.1",
+			name: "zai-org/GLM-5.1",
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 0.55,
-				output: 2.19,
-				cacheRead: 0.55,
+				input: 1,
+				output: 3,
+				cacheRead: 1,
 				cacheWrite: 0,
 			},
-			contextWindow: 202752,
+			contextWindow: 196608,
 			maxTokens: 65536,
 			compat: SYNTHETIC_COMPAT,
 		},

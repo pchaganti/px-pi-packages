@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.11] - 2026-04-12
+
+### Added
+- Added `hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4` and `hf:zai-org/GLM-5.1` to fallback models.
+
+### Removed
+- Removed `hf:MiniMaxAI/MiniMax-M2.1`, `hf:zai-org/GLM-5`, and `hf:zai-org/GLM-4.7` from fallback models (no longer always-on).
+
+### Changed
+- Updated fallback pricing to match current Synthetic API rates:
+  - `hf:moonshotai/Kimi-K2.5`: $0.45 input / $3.40 output (was $0.55/$2.19)
+  - `hf:nvidia/Kimi-K2.5-NVFP4`: $0.45 input / $3.40 output (was $0.55/$2.19)
+  - `hf:MiniMaxAI/MiniMax-M2.5`: $0.40 input / $2.00 output (was $0.60/$3.00)
+
 ## [1.1.10] - 2026-03-31
 
 ### Added
