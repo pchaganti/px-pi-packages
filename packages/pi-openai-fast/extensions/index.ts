@@ -20,7 +20,13 @@ const FAST_FLAG = "fast";
 const FAST_CONFIG_BASENAME = "pi-openai-fast.json";
 const FAST_COMMAND_ARGS = ["on", "off", "status"] as const;
 const FAST_SERVICE_TIER = "priority";
-const DEFAULT_SUPPORTED_MODEL_KEYS = ["openai/gpt-5.4", "openai-codex/gpt-5.4"] as const;
+const DEFAULT_SUPPORTED_MODEL_KEYS = [
+	"openai/gpt-5.4",
+	"openai/gpt-5.5",
+	"openai-codex/gpt-5.4",
+	"openai-codex/gpt-5.5",
+] as const;
+const LEGACY_DEFAULT_SUPPORTED_MODEL_KEYS = ["openai/gpt-5.4", "openai-codex/gpt-5.4"] as const;
 
 interface FastModeState {
 	active: boolean;
@@ -132,6 +138,20 @@ function parseSupportedModels(value: unknown): FastSupportedModel[] | undefined 
 	return models;
 }
 
+function sameModelKeys(left: readonly string[] | undefined, right: readonly string[]): boolean {
+	if (!left || left.length !== right.length) {
+		return false;
+	}
+	return left.every((value, index) => value === right[index]);
+}
+
+function migrateSupportedModelKeys(value: string[] | undefined): string[] | undefined {
+	if (sameModelKeys(value, LEGACY_DEFAULT_SUPPORTED_MODEL_KEYS)) {
+		return [...DEFAULT_SUPPORTED_MODEL_KEYS];
+	}
+	return value;
+}
+
 function readConfigFile(filePath: string): FastConfigFile | null {
 	if (!existsSync(filePath)) {
 		return null;
@@ -187,7 +207,8 @@ function resolveFastConfig(cwd: string, homeDir: string = homedir()): ResolvedFa
 	const selectedConfigPath = existsSync(projectConfigPath) ? projectConfigPath : globalConfigPath;
 	const merged = { ...globalConfig, ...projectConfig };
 	const supportedModels =
-		parseSupportedModels(merged.supportedModels) ?? parseSupportedModels(DEFAULT_SUPPORTED_MODEL_KEYS);
+		parseSupportedModels(migrateSupportedModelKeys(merged.supportedModels)) ??
+		parseSupportedModels(DEFAULT_SUPPORTED_MODEL_KEYS);
 
 	return {
 		configPath: selectedConfigPath,
@@ -379,10 +400,12 @@ export const _test = {
 	FAST_COMMAND_ARGS,
 	FAST_SERVICE_TIER,
 	DEFAULT_SUPPORTED_MODEL_KEYS,
+	LEGACY_DEFAULT_SUPPORTED_MODEL_KEYS,
 	DEFAULT_CONFIG_FILE,
 	getConfigPaths,
 	parseSupportedModelKey,
 	parseSupportedModels,
+	migrateSupportedModelKeys,
 	readConfigFile,
 	resolveFastConfig,
 	isFastSupportedModel,
