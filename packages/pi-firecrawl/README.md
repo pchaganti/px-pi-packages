@@ -43,7 +43,7 @@ pi
 
 ### Option 2: JSON Config
 
-Create `~/.pi/agent/extensions/firecrawl.json`:
+Create `firecrawl.json` in pi's agent extensions directory (`~/.pi/agent/extensions/firecrawl.json` by default; the agent directory honors `PI_CODING_AGENT_DIR`):
 
 ```json
 {
@@ -133,9 +133,10 @@ Config files are loaded in order (first match wins):
 1. Path from `--firecrawl-config` flag
 2. Path from `FIRECRAWL_CONFIG` environment variable
 3. `./.pi/extensions/firecrawl.json` (project-level)
-4. `~/.pi/agent/extensions/firecrawl.json` (global)
+4. `<agent-dir>/extensions/firecrawl.json` (global — `<agent-dir>` is pi's agent directory, `~/.pi/agent` by default or `$PI_CODING_AGENT_DIR` when set)
+5. `~/.pi/agent/extensions/firecrawl.json` (legacy global — only checked when `$PI_CODING_AGENT_DIR` relocates the agent directory, so configs written before the relocation keep working)
 
-If none exist, the extension writes a default config to the global path with `apiKey` set to `null`.
+If none exist, the extension writes a default config to the global path (`<agent-dir>/extensions/firecrawl.json`) with `apiKey` set to `null`.
 
 ### Config File Format
 

@@ -3,7 +3,13 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "@earendil-works/pi-coding-agent";
+import {
+	DEFAULT_MAX_BYTES,
+	DEFAULT_MAX_LINES,
+	formatSize,
+	getAgentDir,
+	truncateHead,
+} from "@earendil-works/pi-coding-agent";
 import type { Static, TObject } from "typebox";
 import { Type } from "typebox";
 
@@ -254,12 +260,8 @@ function warnConfigIssue(message: string, ctx?: ExtensionContext): void {
 	else console.warn(message);
 }
 
-function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string): void {
-	if (
-		failedDefaultConfigWrites.has(globalConfigPath) ||
-		existsSync(projectConfigPath) ||
-		existsSync(globalConfigPath)
-	) {
+function ensureDefaultConfigFile(candidatePaths: string[], globalConfigPath: string): void {
+	if (failedDefaultConfigWrites.has(globalConfigPath) || candidatePaths.some((path) => existsSync(path))) {
 		return;
 	}
 	try {
@@ -281,9 +283,15 @@ function loadConfig(configPath: string | undefined, ctx?: ExtensionContext): Fir
 		candidates.push(resolveConfigPath(envConfig));
 	} else {
 		const projectConfigPath = join(process.cwd(), ".pi", "extensions", CONFIG_FILENAME);
-		const globalConfigPath = join(homedir(), ".pi", "agent", "extensions", CONFIG_FILENAME);
-		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+		const globalConfigPath = join(getAgentDir(), "extensions", CONFIG_FILENAME);
 		candidates.push(projectConfigPath, globalConfigPath);
+		// Configs written before PI_CODING_AGENT_DIR was honored live at the historical
+		// global path; keep it as a fallback when the agent directory is relocated.
+		const legacyGlobalConfigPath = join(homedir(), ".pi", "agent", "extensions", CONFIG_FILENAME);
+		if (legacyGlobalConfigPath !== globalConfigPath) {
+			candidates.push(legacyGlobalConfigPath);
+		}
+		ensureDefaultConfigFile(candidates, globalConfigPath);
 	}
 
 	for (const candidate of candidates) {
@@ -448,7 +456,7 @@ export default function piFirecrawl(pi: ExtensionAPI) {
 		type: "string",
 	});
 	pi.registerFlag("firecrawl-config", {
-		description: `Path to JSON config file (defaults to ~/.pi/agent/extensions/${CONFIG_FILENAME}).`,
+		description: `Path to JSON config file (defaults to ${join(getAgentDir(), "extensions", CONFIG_FILENAME)}).`,
 		type: "string",
 	});
 	pi.registerFlag("firecrawl-tools", {

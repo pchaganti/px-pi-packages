@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -63,11 +63,24 @@ describe("pi-firecrawl helpers", () => {
 		const projectConfigPath = join(base, "project", ".pi", "extensions", CONFIG_FILENAME);
 		const globalConfigPath = join(base, "global", "extensions", CONFIG_FILENAME);
 
-		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+		ensureDefaultConfigFile([projectConfigPath, globalConfigPath], globalConfigPath);
 
 		expect(existsSync(globalConfigPath)).toBe(true);
 		const raw = readFileSync(globalConfigPath, "utf-8");
 		expect(JSON.parse(raw)).toEqual(DEFAULT_CONFIG_FILE);
+	});
+
+	it("does not seed a default when another candidate (e.g. a legacy config) exists", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-firecrawl-config-"));
+		const projectConfigPath = join(base, "project", ".pi", "extensions", CONFIG_FILENAME);
+		const globalConfigPath = join(base, "global", "extensions", CONFIG_FILENAME);
+		const legacyConfigPath = join(base, "legacy", "extensions", CONFIG_FILENAME);
+		mkdirSync(join(base, "legacy", "extensions"), { recursive: true });
+		writeFileSync(legacyConfigPath, JSON.stringify({ apiKey: "fc-legacy" }), "utf-8");
+
+		ensureDefaultConfigFile([projectConfigPath, globalConfigPath, legacyConfigPath], globalConfigPath);
+
+		expect(existsSync(globalConfigPath)).toBe(false);
 	});
 
 	it("does not overwrite existing config", () => {
@@ -76,11 +89,11 @@ describe("pi-firecrawl helpers", () => {
 		const globalConfigPath = join(base, "global", "extensions", CONFIG_FILENAME);
 
 		// First call creates it
-		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+		ensureDefaultConfigFile([projectConfigPath, globalConfigPath], globalConfigPath);
 		const firstContent = readFileSync(globalConfigPath, "utf-8");
 
 		// Second call should not overwrite
-		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+		ensureDefaultConfigFile([projectConfigPath, globalConfigPath], globalConfigPath);
 		const secondContent = readFileSync(globalConfigPath, "utf-8");
 
 		expect(firstContent).toBe(secondContent);
@@ -96,7 +109,7 @@ describe("pi-firecrawl helpers", () => {
 			const projectConfigPath = join(base, "project", ".pi", "extensions", CONFIG_FILENAME);
 			const globalConfigPath = join(blocker, "extensions", CONFIG_FILENAME);
 
-			ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+			ensureDefaultConfigFile([projectConfigPath, globalConfigPath], globalConfigPath);
 			expect(existsSync(globalConfigPath)).toBe(false);
 			expect(warnSpy).toHaveBeenCalledTimes(1);
 			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(`Failed to write ${globalConfigPath}`));
@@ -104,7 +117,7 @@ describe("pi-firecrawl helpers", () => {
 			// Removing the blocker would let a retry succeed. The latch must prevent the
 			// retry entirely, not merely silence the second warning.
 			rmSync(blocker);
-			ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+			ensureDefaultConfigFile([projectConfigPath, globalConfigPath], globalConfigPath);
 			expect(existsSync(globalConfigPath)).toBe(false);
 			expect(warnSpy).toHaveBeenCalledTimes(1);
 		} finally {

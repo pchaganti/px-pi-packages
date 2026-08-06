@@ -1,9 +1,18 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it, vi } from "vitest";
-import piFirecrawl, { CONFIG_FILENAME } from "../extensions/index.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import piFirecrawl, { CONFIG_FILENAME, DEFAULT_CONFIG_FILE } from "../extensions/index.js";
+
+// The extension consults ~/.pi/agent as a legacy config fallback; point homedir at a
+// temp dir so a developer's real config never leaks into the tests.
+const mockedOs = vi.hoisted(() => ({ homedir: "" }));
+
+vi.mock("node:os", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:os")>();
+	return { ...actual, homedir: () => mockedOs.homedir };
+});
 
 const createMockPi = () =>
 	({
@@ -13,6 +22,34 @@ const createMockPi = () =>
 	}) satisfies Partial<ExtensionAPI>;
 
 describe("pi-firecrawl", () => {
+	// Point pi's agent dir at a temp dir so activation-time config seeding never
+	// touches the real ~/.pi/agent, and so tests exercise the env override.
+	let previousAgentDir: string | undefined;
+	let previousConfigEnv: string | undefined;
+	let agentDir: string;
+
+	beforeEach(() => {
+		previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+		previousConfigEnv = process.env.FIRECRAWL_CONFIG;
+		delete process.env.FIRECRAWL_CONFIG;
+		agentDir = mkdtempSync(join(tmpdir(), "pi-firecrawl-agent-"));
+		process.env.PI_CODING_AGENT_DIR = agentDir;
+		mockedOs.homedir = mkdtempSync(join(tmpdir(), "pi-firecrawl-home-"));
+	});
+
+	afterEach(() => {
+		if (previousAgentDir === undefined) {
+			delete process.env.PI_CODING_AGENT_DIR;
+		} else {
+			process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+		}
+		if (previousConfigEnv === undefined) {
+			delete process.env.FIRECRAWL_CONFIG;
+		} else {
+			process.env.FIRECRAWL_CONFIG = previousConfigEnv;
+		}
+	});
+
 	it("registers tools", () => {
 		const previousTools = process.env.FIRECRAWL_TOOLS;
 		process.env.FIRECRAWL_TOOLS = "";
@@ -73,6 +110,48 @@ describe("pi-firecrawl", () => {
 			]),
 		);
 		expect(flagNames.every((name) => !name.startsWith("--"))).toBe(true);
+	});
+
+	it("seeds the default global config under PI_CODING_AGENT_DIR", () => {
+		const previousTools = process.env.FIRECRAWL_TOOLS;
+		process.env.FIRECRAWL_TOOLS = "";
+
+		const mockPi = createMockPi();
+		piFirecrawl(mockPi as unknown as ExtensionAPI);
+
+		if (previousTools === undefined) {
+			delete process.env.FIRECRAWL_TOOLS;
+		} else {
+			process.env.FIRECRAWL_TOOLS = previousTools;
+		}
+
+		const seededPath = join(agentDir, "extensions", CONFIG_FILENAME);
+		expect(existsSync(seededPath)).toBe(true);
+		expect(JSON.parse(readFileSync(seededPath, "utf-8"))).toEqual(DEFAULT_CONFIG_FILE);
+	});
+
+	it("falls back to the legacy global config when PI_CODING_AGENT_DIR relocates the agent dir", () => {
+		const previousTools = process.env.FIRECRAWL_TOOLS;
+		delete process.env.FIRECRAWL_TOOLS;
+
+		const legacyExtensionsDir = join(mockedOs.homedir, ".pi", "agent", "extensions");
+		mkdirSync(legacyExtensionsDir, { recursive: true });
+		writeFileSync(join(legacyExtensionsDir, CONFIG_FILENAME), JSON.stringify({ tools: ["firecrawl_map"] }), "utf-8");
+
+		const mockPi = createMockPi();
+		piFirecrawl(mockPi as unknown as ExtensionAPI);
+
+		if (previousTools === undefined) {
+			delete process.env.FIRECRAWL_TOOLS;
+		} else {
+			process.env.FIRECRAWL_TOOLS = previousTools;
+		}
+
+		const toolNames = mockPi.registerTool.mock.calls.map(([tool]) => tool.name);
+		expect(toolNames).toEqual(["firecrawl_map"]);
+
+		// The legacy config must not be masked by seeding a default at the relocated path.
+		expect(existsSync(join(agentDir, "extensions", CONFIG_FILENAME))).toBe(false);
 	});
 
 	it("routes invalid-config warnings through ctx.ui.notify when UI is attached", async () => {
