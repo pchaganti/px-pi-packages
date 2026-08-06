@@ -2,7 +2,7 @@
 
 Recursive ancestor discovery for pi resources (skills, prompts, themes).
 
-This extension uses the `resources_discover` hook (pi v0.51.0+) to walk upward from your current working directory and discover resource folders at each ancestor level.
+This extension uses the `resources_discover` hook to walk upward from your current working directory and discover resource folders at each ancestor level. It requires pi (`@earendil-works/pi-coding-agent`) v0.74.0 or later, per the declared peer dependency. (The hook itself dates back to around pi v0.50.8, but earlier pi versions are not supported by this package.)
 
 ## Install
 

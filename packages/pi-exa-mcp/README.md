@@ -156,7 +156,7 @@ Tool output is automatically truncated to prevent context window overflow:
 
 ## Requirements
 
-- pi v0.51.0 or later
+- pi v0.74.0 or later
 - Optional: Exa API key for higher rate limits
 
 ## Uninstall

@@ -11,7 +11,7 @@ The extension remains in the repository only so existing installs fail closed wi
 Remove this package from your installed pi extensions:
 
 ```bash
-pi uninstall @benvargas/pi-antigravity-image-gen
+pi uninstall npm:@benvargas/pi-antigravity-image-gen
 ```
 
 Use a provider-supported image generation workflow instead of an Antigravity harness.
