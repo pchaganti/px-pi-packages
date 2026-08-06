@@ -8,6 +8,7 @@
 		"surfaceStrong": "#eaeef2",
 		"border": "#d0d7de",
 		"borderMuted": "#d8dee4",
+		"borderStrong": "#8c959f",
 		"accent": "#0969da",
 		"focus": "#0969da",
 		"text": "#1f2328",
@@ -42,6 +43,7 @@
 		"thinkingText": "muted",
 
 		"selectedBg": "blueSurface",
+		"scrollbarThumb": "borderStrong",
 		"userMessageBg": "surfaceStrong",
 		"userMessageText": "text",
 		"customMessageBg": "purpleSurface",

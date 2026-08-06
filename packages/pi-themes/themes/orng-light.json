@@ -37,6 +37,7 @@
 		"thinkingText": "muted",
 
 		"selectedBg": "element",
+		"scrollbarThumb": "primary",
 		"userMessageBg": "panel",
 		"userMessageText": "text",
 		"customMessageBg": "element",
