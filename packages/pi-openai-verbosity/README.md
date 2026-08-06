@@ -20,8 +20,9 @@ pi has since shipped an upstream fix: OpenAI Codex Responses requests now defaul
 explicit verbosity is provided.
 
 That upstream change addresses the original `gpt-5.5` issue, but it also means pi now defaults every
-`openai-codex` model to `low`. That may not be ideal for all model slugs. For example, you may prefer `low` on
-`gpt-5.5`, but `medium` on an older or different model such as `gpt-5.3-codex`.
+`openai-codex` model to `low`. That may not be ideal for all model slugs. For example, the Codex CLI's own
+default for `gpt-5.4-mini` is `medium`, not `low`, and you may prefer `high` on a model you use for
+long-form writing.
 
 This extension now provides the missing user-facing control: per-slug verbosity settings for pi's
 `openai-codex` provider.
@@ -73,20 +74,27 @@ reloads the config file.
 Config files follow pi's project-over-global pattern:
 
 - Project: `<repo>/.pi/extensions/pi-openai-verbosity.json`
-- Global: `~/.pi/agent/extensions/pi-openai-verbosity.json`
+- Global: `<agent-dir>/extensions/pi-openai-verbosity.json`
 
-If neither exists, the extension writes a default global config on first run.
+The global path uses pi's agent directory — `~/.pi/agent` by default, or wherever `PI_CODING_AGENT_DIR`
+points if you have relocated it.
+
+Older versions of this extension always used `~/.pi/agent`, even when `PI_CODING_AGENT_DIR` was set. If you
+have relocated the agent directory and it contains no config, a config left at the legacy
+`~/.pi/agent/extensions/pi-openai-verbosity.json` path is still honored; it is read in place and never
+modified. A config in the relocated directory takes precedence once you create one there.
+
+If no config exists at any of these locations, the extension writes a default global config on first run.
 
 Example config:
 
 ```json
 {
   "models": {
+    "openai-codex/gpt-5.6-sol": "low",
     "openai-codex/gpt-5.5": "low",
-    "openai-codex/gpt-5.4": "low",
-    "openai-codex/gpt-5.3-codex": "medium",
-    "openai-codex/gpt-5.3-codex-spark": "medium",
-    "openai-codex/gpt-5.2": "medium"
+    "openai-codex/gpt-5.4-mini": "medium",
+    "openai-codex/gpt-5.3-codex-spark": "medium"
   }
 }
 ```
@@ -100,24 +108,27 @@ native default behavior applies.
 
 ## Default Config
 
-By default, the extension preserves the original workaround behavior and sets known supported OpenAI Codex models
-to `low`:
+By default, the extension mirrors the Codex CLI's own per-model verbosity defaults for every model in pi's
+`openai-codex` catalog. That means `low` everywhere except `gpt-5.4-mini`, whose upstream default is `medium`
+(pi's blanket fallback would otherwise force it to `low`):
 
 ```json
 {
   "models": {
-    "openai-codex/gpt-5.4": "low",
-    "openai-codex/gpt-5.5": "low",
-    "openai-codex/gpt-5.4-mini": "low",
-    "openai-codex/gpt-5.3-codex": "low",
     "openai-codex/gpt-5.3-codex-spark": "low",
-    "openai-codex/gpt-5.2": "low",
-    "openai-codex/codex-auto-review": "low"
+    "openai-codex/gpt-5.4": "low",
+    "openai-codex/gpt-5.4-mini": "medium",
+    "openai-codex/gpt-5.5": "low",
+    "openai-codex/gpt-5.6-luna": "low",
+    "openai-codex/gpt-5.6-sol": "low",
+    "openai-codex/gpt-5.6-terra": "low"
   }
 }
 ```
 
-You can change any value to `medium` or `high` to override pi's native low-verbosity default for that model.
+You can change any value to override the default for that model. If you have an existing config file from an
+older version of this extension, your file's entries win over these defaults, and entries for model slugs pi no
+longer exposes are simply ignored.
 
 ## Debugging
 
@@ -131,7 +142,7 @@ matching and rewriting a request, set `PI_OPENAI_VERBOSITY_DEBUG_LOG` to a JSONL
 ```bash
 PI_OPENAI_VERBOSITY_DEBUG_LOG=/tmp/pi-openai-verbosity.jsonl \
   pi -e npm:@benvargas/pi-openai-verbosity \
-  --model openai-codex/gpt-5.3-codex \
+  --model openai-codex/gpt-5.6-sol \
   -p "Reply in one short sentence."
 ```
 

@@ -11,15 +11,15 @@ function createContext(model: ExtensionContext["model"]): ExtensionContext {
 	} as unknown as ExtensionContext;
 }
 
-function createTempConfigPaths(): { cwd: string; homeDir: string; cleanup: () => void } {
+function createTempConfigPaths(): { cwd: string; agentDir: string; cleanup: () => void } {
 	const root = mkdtempSync(join(tmpdir(), "pi-openai-verbosity-"));
 	const cwd = join(root, "workspace");
-	const homeDir = join(root, "home");
+	const agentDir = join(root, "home", ".pi", "agent");
 	mkdirSync(cwd, { recursive: true });
-	mkdirSync(homeDir, { recursive: true });
+	mkdirSync(agentDir, { recursive: true });
 	return {
 		cwd,
-		homeDir,
+		agentDir,
 		cleanup: () => {
 			rmSync(root, { recursive: true, force: true });
 		},
@@ -40,21 +40,21 @@ describe("pi-openai-verbosity helpers", () => {
 	});
 
 	it("writes a default config and resolves project overrides", () => {
-		const { cwd, homeDir, cleanup } = createTempConfigPaths();
+		const { cwd, agentDir, cleanup } = createTempConfigPaths();
 		try {
-			const defaultConfig = _test.resolveVerbosityConfig(cwd, homeDir);
+			const defaultConfig = _test.resolveVerbosityConfig(cwd, agentDir);
 			expect(defaultConfig.models).toEqual(_test.DEFAULT_MODEL_VERBOSITY);
 			expect(defaultConfig.models).toMatchObject({
-				"openai-codex/gpt-5.4": "low",
-				"openai-codex/gpt-5.5": "low",
-				"openai-codex/gpt-5.4-mini": "low",
-				"openai-codex/gpt-5.3-codex": "low",
 				"openai-codex/gpt-5.3-codex-spark": "low",
-				"openai-codex/gpt-5.2": "low",
-				"openai-codex/codex-auto-review": "low",
+				"openai-codex/gpt-5.4": "low",
+				"openai-codex/gpt-5.4-mini": "medium",
+				"openai-codex/gpt-5.5": "low",
+				"openai-codex/gpt-5.6-luna": "low",
+				"openai-codex/gpt-5.6-sol": "low",
+				"openai-codex/gpt-5.6-terra": "low",
 			});
 
-			const { projectConfigPath, globalConfigPath } = _test.getConfigPaths(cwd, homeDir);
+			const { projectConfigPath, globalConfigPath } = _test.getConfigPaths(cwd, agentDir);
 			expect(_test.readConfigFile(globalConfigPath)).toEqual(_test.DEFAULT_CONFIG_FILE);
 
 			mkdirSync(join(cwd, ".pi", "extensions"), { recursive: true });
@@ -64,7 +64,7 @@ describe("pi-openai-verbosity helpers", () => {
 				"utf-8",
 			);
 
-			const overriddenConfig = _test.resolveVerbosityConfig(cwd, homeDir);
+			const overriddenConfig = _test.resolveVerbosityConfig(cwd, agentDir);
 			expect(overriddenConfig.configPath).toBe(projectConfigPath);
 			expect(overriddenConfig.models).toMatchObject({
 				"openai-codex/gpt-5.5": "medium",

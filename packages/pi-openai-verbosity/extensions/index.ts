@@ -4,26 +4,34 @@
  * Sets OpenAI Responses `text.verbosity` for configured models via the
  * `before_provider_request` hook. Config precedence is project
  * `.pi/extensions/pi-openai-verbosity.json` over global
- * `~/.pi/agent/extensions/pi-openai-verbosity.json`.
+ * `<agent-dir>/extensions/pi-openai-verbosity.json`, where the agent
+ * directory comes from pi's getAgentDir (honoring PI_CODING_AGENT_DIR).
+ * Older versions always used `~/.pi/agent`; when the agent directory is
+ * relocated and has no config, a config at that legacy path is still read
+ * (in place, never modified) so existing settings keep working.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const VERBOSITY_COMMAND = "openai-verbosity";
 const VERBOSITY_CONFIG_BASENAME = "pi-openai-verbosity.json";
 const VERBOSITY_COMMAND_ARGS = ["status"] as const;
 const DEBUG_LOG_ENV = "PI_OPENAI_VERBOSITY_DEBUG_LOG";
 const SUPPORTED_PROVIDERS = ["openai-codex"] as const;
+// Mirrors the Codex CLI upstream defaults for every model in pi's openai-codex
+// catalog. pi itself falls back to `low` for all codex requests, which matches
+// upstream everywhere except gpt-5.4-mini (upstream default: medium).
 const DEFAULT_MODEL_VERBOSITY = {
-	"openai-codex/gpt-5.4": "low",
-	"openai-codex/gpt-5.5": "low",
-	"openai-codex/gpt-5.4-mini": "low",
-	"openai-codex/gpt-5.3-codex": "low",
 	"openai-codex/gpt-5.3-codex-spark": "low",
-	"openai-codex/gpt-5.2": "low",
-	"openai-codex/codex-auto-review": "low",
+	"openai-codex/gpt-5.4": "low",
+	"openai-codex/gpt-5.4-mini": "medium",
+	"openai-codex/gpt-5.5": "low",
+	"openai-codex/gpt-5.6-luna": "low",
+	"openai-codex/gpt-5.6-sol": "low",
+	"openai-codex/gpt-5.6-terra": "low",
 } as const;
 
 type TextVerbosity = "low" | "medium" | "high";
@@ -97,16 +105,23 @@ function getConfigCwd(ctx: ExtensionContext): string {
 	return ctx.cwd || process.cwd();
 }
 
+// The second parameter keeps its pre-0.84 homeDir meaning so existing callers of the
+// exported helpers are unaffected. The agentDir default mirrors pi's getAgentDir():
+// PI_CODING_AGENT_DIR when set, otherwise `<homeDir>/.pi/agent` (which also preserves
+// the old behavior when a caller injects a custom homeDir without setting the env var).
 function getConfigPaths(
 	cwd: string,
 	homeDir: string = homedir(),
+	agentDir: string = process.env.PI_CODING_AGENT_DIR ? getAgentDir() : join(homeDir, ".pi", "agent"),
 ): {
 	projectConfigPath: string;
 	globalConfigPath: string;
+	legacyGlobalConfigPath: string;
 } {
 	return {
 		projectConfigPath: join(cwd, ".pi", "extensions", VERBOSITY_CONFIG_BASENAME),
-		globalConfigPath: join(homeDir, ".pi", "agent", "extensions", VERBOSITY_CONFIG_BASENAME),
+		globalConfigPath: join(agentDir, "extensions", VERBOSITY_CONFIG_BASENAME),
+		legacyGlobalConfigPath: join(homeDir, ".pi", "agent", "extensions", VERBOSITY_CONFIG_BASENAME),
 	};
 }
 
@@ -139,20 +154,32 @@ function writeConfigFile(filePath: string, config: VerbosityConfigFile): void {
 	}
 }
 
-function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string): void {
-	if (existsSync(projectConfigPath) || existsSync(globalConfigPath)) {
+function ensureDefaultConfigFile(
+	projectConfigPath: string,
+	globalConfigPath: string,
+	legacyGlobalConfigPath: string,
+): void {
+	if (existsSync(projectConfigPath) || existsSync(globalConfigPath) || existsSync(legacyGlobalConfigPath)) {
 		return;
 	}
 	writeConfigFile(globalConfigPath, DEFAULT_CONFIG_FILE);
 }
 
-function resolveVerbosityConfig(cwd: string, homeDir: string = homedir()): ResolvedVerbosityConfig {
-	const { projectConfigPath, globalConfigPath } = getConfigPaths(cwd, homeDir);
-	ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+function resolveVerbosityConfig(cwd: string, homeDir: string = homedir(), agentDir?: string): ResolvedVerbosityConfig {
+	const { projectConfigPath, globalConfigPath, legacyGlobalConfigPath } = getConfigPaths(cwd, homeDir, agentDir);
+	ensureDefaultConfigFile(projectConfigPath, globalConfigPath, legacyGlobalConfigPath);
 
-	const globalConfig = readConfigFile(globalConfigPath) ?? {};
+	// Configs written before this extension honored PI_CODING_AGENT_DIR live at the
+	// legacy ~/.pi/agent path; fall back to that file (read in place, never migrated)
+	// when the relocated agent directory has no config of its own.
+	const globalSourcePath =
+		!existsSync(globalConfigPath) && globalConfigPath !== legacyGlobalConfigPath && existsSync(legacyGlobalConfigPath)
+			? legacyGlobalConfigPath
+			: globalConfigPath;
+
+	const globalConfig = readConfigFile(globalSourcePath) ?? {};
 	const projectConfig = readConfigFile(projectConfigPath) ?? {};
-	const selectedConfigPath = existsSync(projectConfigPath) ? projectConfigPath : globalConfigPath;
+	const selectedConfigPath = existsSync(projectConfigPath) ? projectConfigPath : globalSourcePath;
 
 	return {
 		configPath: selectedConfigPath,

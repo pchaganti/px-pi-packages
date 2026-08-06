@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -24,15 +24,17 @@ type MockUi = {
 	notify: ReturnType<typeof vi.fn>;
 };
 
-function createTempWorkspace(): { cwd: string; homeDir: string; cleanup: () => void } {
+function createTempWorkspace(): { cwd: string; homeDir: string; agentDir: string; cleanup: () => void } {
 	const root = mkdtempSync(join(tmpdir(), "pi-openai-verbosity-"));
 	const cwd = join(root, "workspace");
 	const homeDir = join(root, "home");
+	const agentDir = join(homeDir, ".pi", "agent");
 	mkdirSync(cwd, { recursive: true });
 	mkdirSync(homeDir, { recursive: true });
 	return {
 		cwd,
 		homeDir,
+		agentDir,
 		cleanup: () => {
 			vi.unstubAllEnvs();
 			rmSync(root, { recursive: true, force: true });
@@ -119,9 +121,10 @@ describe("pi-openai-verbosity", () => {
 	});
 
 	it("injects low text verbosity for the default configured model", () => {
-		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		const { cwd, homeDir, agentDir, cleanup } = createTempWorkspace();
 		try {
 			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
 
 			const mockPi = createMockPi();
 			piOpenAIVerbosity(mockPi as unknown as ExtensionAPI);
@@ -142,9 +145,10 @@ describe("pi-openai-verbosity", () => {
 	});
 
 	it("writes before and after debug entries when verbosity is applied", () => {
-		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		const { cwd, homeDir, agentDir, cleanup } = createTempWorkspace();
 		try {
 			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
 			const debugLogPath = join(cwd, "debug", "verbosity.jsonl");
 			vi.stubEnv("PI_OPENAI_VERBOSITY_DEBUG_LOG", debugLogPath);
 
@@ -191,9 +195,10 @@ describe("pi-openai-verbosity", () => {
 	});
 
 	it("writes a debug entry when a model is not configured", () => {
-		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		const { cwd, homeDir, agentDir, cleanup } = createTempWorkspace();
 		try {
 			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
 			const debugLogPath = join(cwd, "debug", "verbosity.jsonl");
 			vi.stubEnv("PI_OPENAI_VERBOSITY_DEBUG_LOG", debugLogPath);
 
@@ -224,16 +229,17 @@ describe("pi-openai-verbosity", () => {
 		}
 	});
 
-	it("injects low text verbosity for every default configured model", () => {
-		const { cwd, homeDir, cleanup } = createTempWorkspace();
+	it("injects the default text verbosity for every default configured model", () => {
+		const { cwd, homeDir, agentDir, cleanup } = createTempWorkspace();
 		try {
 			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
 
 			const mockPi = createMockPi();
 			piOpenAIVerbosity(mockPi as unknown as ExtensionAPI);
 			const beforeProviderRequest = getRegisteredHandler(mockPi, "before_provider_request");
 
-			for (const modelKey of Object.keys(_test.DEFAULT_MODEL_VERBOSITY)) {
+			for (const [modelKey, verbosity] of Object.entries(_test.DEFAULT_MODEL_VERBOSITY)) {
 				const id = modelKey.slice("openai-codex/".length);
 				const { ctx } = createMockContext({ provider: "openai-codex", id } as ExtensionContext["model"], cwd);
 				expect(
@@ -241,7 +247,7 @@ describe("pi-openai-verbosity", () => {
 						{ type: "before_provider_request", payload: { input: "hello" } } as BeforeProviderRequestEvent,
 						ctx,
 					),
-				).toEqual({ input: "hello", text: { verbosity: "low" } });
+				).toEqual({ input: "hello", text: { verbosity } });
 			}
 		} finally {
 			cleanup();
@@ -249,9 +255,10 @@ describe("pi-openai-verbosity", () => {
 	});
 
 	it("skips payload changes for unconfigured models", () => {
-		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		const { cwd, homeDir, agentDir, cleanup } = createTempWorkspace();
 		try {
 			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
 
 			const mockPi = createMockPi();
 			piOpenAIVerbosity(mockPi as unknown as ExtensionAPI);
@@ -270,11 +277,12 @@ describe("pi-openai-verbosity", () => {
 	});
 
 	it("uses configured verbosity per model and refreshes config on /openai-verbosity status", async () => {
-		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		const { cwd, homeDir, agentDir, cleanup } = createTempWorkspace();
 		try {
 			vi.stubEnv("HOME", homeDir);
-			const { globalConfigPath } = _test.getConfigPaths(cwd, homeDir);
-			mkdirSync(join(homeDir, ".pi", "agent", "extensions"), { recursive: true });
+			vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
+			const { globalConfigPath } = _test.getConfigPaths(cwd, homeDir, agentDir);
+			mkdirSync(join(agentDir, "extensions"), { recursive: true });
 			writeFileSync(
 				globalConfigPath,
 				`${JSON.stringify({ models: { "openai-codex/gpt-5.5": "high" } }, null, 2)}\n`,
@@ -320,6 +328,135 @@ describe("pi-openai-verbosity", () => {
 					ctx,
 				),
 			).toEqual({ input: "hello", text: { verbosity: "low" } });
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("seeds the default global config under PI_CODING_AGENT_DIR when it is set", () => {
+		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		try {
+			const relocatedAgentDir = join(homeDir, "relocated-agent");
+			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", relocatedAgentDir);
+
+			const mockPi = createMockPi();
+			piOpenAIVerbosity(mockPi as unknown as ExtensionAPI);
+			const beforeProviderRequest = getRegisteredHandler(mockPi, "before_provider_request");
+			const { ctx } = createMockContext(
+				{ provider: "openai-codex", id: "gpt-5.6-sol" } as ExtensionContext["model"],
+				cwd,
+			);
+
+			expect(
+				beforeProviderRequest(
+					{ type: "before_provider_request", payload: { input: "hello" } } as BeforeProviderRequestEvent,
+					ctx,
+				),
+			).toEqual({ input: "hello", text: { verbosity: "low" } });
+
+			const seededConfigPath = join(relocatedAgentDir, "extensions", "pi-openai-verbosity.json");
+			expect(existsSync(seededConfigPath)).toBe(true);
+			expect(JSON.parse(readFileSync(seededConfigPath, "utf-8"))).toEqual(_test.DEFAULT_CONFIG_FILE);
+			expect(existsSync(join(homeDir, ".pi", "agent", "extensions", "pi-openai-verbosity.json"))).toBe(false);
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("falls back to a legacy ~/.pi/agent config when PI_CODING_AGENT_DIR is relocated", () => {
+		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		try {
+			const relocatedAgentDir = join(homeDir, "relocated-agent");
+			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", relocatedAgentDir);
+
+			const legacyConfigPath = join(homeDir, ".pi", "agent", "extensions", "pi-openai-verbosity.json");
+			mkdirSync(join(homeDir, ".pi", "agent", "extensions"), { recursive: true });
+			const legacyRaw = `${JSON.stringify({ models: { "openai-codex/gpt-5.5": "high" } }, null, 2)}\n`;
+			writeFileSync(legacyConfigPath, legacyRaw, "utf-8");
+
+			const mockPi = createMockPi();
+			piOpenAIVerbosity(mockPi as unknown as ExtensionAPI);
+			const beforeProviderRequest = getRegisteredHandler(mockPi, "before_provider_request");
+			const { ctx } = createMockContext({ provider: "openai-codex", id: "gpt-5.5" } as ExtensionContext["model"], cwd);
+
+			expect(
+				beforeProviderRequest(
+					{ type: "before_provider_request", payload: { input: "hello" } } as BeforeProviderRequestEvent,
+					ctx,
+				),
+			).toEqual({ input: "hello", text: { verbosity: "high" } });
+
+			const resolved = _test.resolveVerbosityConfig(cwd);
+			expect(resolved.configPath).toBe(legacyConfigPath);
+			expect(resolved.models["openai-codex/gpt-5.5"]).toBe("high");
+
+			// The legacy file is read in place: no default is seeded into the relocated
+			// directory and the legacy file itself is never rewritten.
+			expect(existsSync(join(relocatedAgentDir, "extensions", "pi-openai-verbosity.json"))).toBe(false);
+			expect(readFileSync(legacyConfigPath, "utf-8")).toBe(legacyRaw);
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("prefers a relocated global config over the legacy ~/.pi/agent config", () => {
+		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		try {
+			const relocatedAgentDir = join(homeDir, "relocated-agent");
+			vi.stubEnv("HOME", homeDir);
+			vi.stubEnv("PI_CODING_AGENT_DIR", relocatedAgentDir);
+
+			mkdirSync(join(homeDir, ".pi", "agent", "extensions"), { recursive: true });
+			writeFileSync(
+				join(homeDir, ".pi", "agent", "extensions", "pi-openai-verbosity.json"),
+				`${JSON.stringify({ models: { "openai-codex/gpt-5.5": "high" } }, null, 2)}\n`,
+				"utf-8",
+			);
+			mkdirSync(join(relocatedAgentDir, "extensions"), { recursive: true });
+			writeFileSync(
+				join(relocatedAgentDir, "extensions", "pi-openai-verbosity.json"),
+				`${JSON.stringify({ models: { "openai-codex/gpt-5.5": "medium" } }, null, 2)}\n`,
+				"utf-8",
+			);
+
+			const mockPi = createMockPi();
+			piOpenAIVerbosity(mockPi as unknown as ExtensionAPI);
+			const beforeProviderRequest = getRegisteredHandler(mockPi, "before_provider_request");
+			const { ctx } = createMockContext({ provider: "openai-codex", id: "gpt-5.5" } as ExtensionContext["model"], cwd);
+
+			expect(
+				beforeProviderRequest(
+					{ type: "before_provider_request", payload: { input: "hello" } } as BeforeProviderRequestEvent,
+					ctx,
+				),
+			).toEqual({ input: "hello", text: { verbosity: "medium" } });
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("keeps legacy homeDir injection working in the exported helpers", () => {
+		const { cwd, homeDir, agentDir, cleanup } = createTempWorkspace();
+		try {
+			vi.stubEnv("PI_CODING_AGENT_DIR", "");
+
+			const paths = _test.getConfigPaths(cwd, homeDir);
+			const expectedGlobalPath = join(agentDir, "extensions", "pi-openai-verbosity.json");
+			expect(paths.globalConfigPath).toBe(expectedGlobalPath);
+			expect(paths.legacyGlobalConfigPath).toBe(expectedGlobalPath);
+
+			mkdirSync(join(agentDir, "extensions"), { recursive: true });
+			writeFileSync(
+				expectedGlobalPath,
+				`${JSON.stringify({ models: { "openai-codex/gpt-5.5": "high" } }, null, 2)}\n`,
+				"utf-8",
+			);
+
+			const resolved = _test.resolveVerbosityConfig(cwd, homeDir);
+			expect(resolved.configPath).toBe(expectedGlobalPath);
+			expect(resolved.models["openai-codex/gpt-5.5"]).toBe("high");
 		} finally {
 			cleanup();
 		}
