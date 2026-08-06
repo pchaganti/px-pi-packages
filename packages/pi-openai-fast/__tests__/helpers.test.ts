@@ -1,8 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { _test } from "../extensions/index.js";
 
 function createContext(model: ExtensionContext["model"]): ExtensionContext {
@@ -62,6 +62,18 @@ describe("pi-openai-fast helpers", () => {
 		).toBe(true);
 		expect(
 			_test.isFastSupportedModel(
+				{ provider: "openai", id: "gpt-5.4-mini" } as ExtensionContext["model"],
+				supportedModels,
+			),
+		).toBe(true);
+		expect(
+			_test.isFastSupportedModel(
+				{ provider: "openai-codex", id: "gpt-5.4-mini" } as ExtensionContext["model"],
+				supportedModels,
+			),
+		).toBe(false);
+		expect(
+			_test.isFastSupportedModel(
 				{ provider: "openai-codex", id: "gpt-5.6-terra" } as ExtensionContext["model"],
 				supportedModels,
 			),
@@ -84,6 +96,7 @@ describe("pi-openai-fast helpers", () => {
 			expect(defaultConfig.active).toBe(false);
 			expect(defaultConfig.supportedModels).toEqual([
 				{ provider: "openai", id: "gpt-5.4" },
+				{ provider: "openai", id: "gpt-5.4-mini" },
 				{ provider: "openai", id: "gpt-5.5" },
 				{ provider: "openai", id: "gpt-5.6-sol" },
 				{ provider: "openai", id: "gpt-5.6-terra" },
@@ -115,6 +128,29 @@ describe("pi-openai-fast helpers", () => {
 				supportedModels: ["openai/gpt-5.5"],
 			});
 		} finally {
+			cleanup();
+		}
+	});
+
+	it("resolves the global config from PI_CODING_AGENT_DIR when no homeDir override is given", () => {
+		const { cwd, homeDir, cleanup } = createTempConfigPaths();
+		try {
+			const agentDir = join(homeDir, "relocated-agent");
+			vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
+
+			const { globalConfigPath } = _test.getConfigPaths(cwd);
+			expect(globalConfigPath).toBe(join(agentDir, "extensions", _test.FAST_CONFIG_BASENAME));
+
+			const config = _test.resolveFastConfig(cwd);
+			expect(config.configPath).toBe(globalConfigPath);
+			expect(existsSync(globalConfigPath)).toBe(true);
+
+			const explicitPaths = _test.getConfigPaths(cwd, homeDir);
+			expect(explicitPaths.globalConfigPath).toBe(
+				join(homeDir, ".pi", "agent", "extensions", _test.FAST_CONFIG_BASENAME),
+			);
+		} finally {
+			vi.unstubAllEnvs();
 			cleanup();
 		}
 	});

@@ -6,22 +6,28 @@
  *
  * Startup state comes from `pi-openai-fast.json`, not resumed session history.
  * Config precedence is project `.pi/extensions/pi-openai-fast.json` over
- * global `~/.pi/agent/extensions/pi-openai-fast.json`.
+ * global `<agent dir>/extensions/pi-openai-fast.json`, where the agent dir is
+ * pi's getAgentDir() (typically `~/.pi/agent`, honoring PI_CODING_AGENT_DIR).
+ * Releases before 0.84 always used `~/.pi/agent`; when the agent dir differs
+ * and holds no config yet, the legacy global file is copied there once.
  *
  * `supportedModels` controls which `provider/model-id` pairs receive the flag.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { dirname, join, resolve } from "node:path";
+import { type ExtensionAPI, type ExtensionContext, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const FAST_COMMAND = "fast";
 const FAST_FLAG = "fast";
 const FAST_CONFIG_BASENAME = "pi-openai-fast.json";
 const FAST_COMMAND_ARGS = ["on", "off", "status"] as const;
 const FAST_SERVICE_TIER = "priority";
+// `openai/gpt-5.4-mini` has an official Fast-mode price and is API-key only: the
+// ChatGPT (openai-codex) catalog exposes no priority tier for gpt-5.4-mini.
 const DEFAULT_SUPPORTED_MODEL_KEYS = [
 	"openai/gpt-5.4",
+	"openai/gpt-5.4-mini",
 	"openai/gpt-5.5",
 	"openai/gpt-5.6-sol",
 	"openai/gpt-5.6-terra",
@@ -35,6 +41,18 @@ const DEFAULT_SUPPORTED_MODEL_KEYS = [
 const LEGACY_DEFAULT_SUPPORTED_MODEL_KEY_SETS = [
 	["openai/gpt-5.4", "openai-codex/gpt-5.4"],
 	["openai/gpt-5.4", "openai/gpt-5.5", "openai-codex/gpt-5.4", "openai-codex/gpt-5.5"],
+	[
+		"openai/gpt-5.4",
+		"openai/gpt-5.5",
+		"openai/gpt-5.6-sol",
+		"openai/gpt-5.6-terra",
+		"openai/gpt-5.6-luna",
+		"openai-codex/gpt-5.4",
+		"openai-codex/gpt-5.5",
+		"openai-codex/gpt-5.6-sol",
+		"openai-codex/gpt-5.6-terra",
+		"openai-codex/gpt-5.6-luna",
+	],
 ] as const;
 
 interface FastModeState {
@@ -80,14 +98,19 @@ function getConfigCwd(ctx: ExtensionContext): string {
 
 function getConfigPaths(
 	cwd: string,
-	homeDir: string = homedir(),
+	homeDir?: string,
 ): {
 	projectConfigPath: string;
 	globalConfigPath: string;
+	legacyGlobalConfigPath: string;
 } {
+	const agentDir = homeDir === undefined ? getAgentDir() : join(homeDir, ".pi", "agent");
+	// Pre-0.84 releases always wrote the global config under ~/.pi/agent, ignoring PI_CODING_AGENT_DIR.
+	const legacyAgentDir = join(homeDir ?? homedir(), ".pi", "agent");
 	return {
 		projectConfigPath: join(cwd, ".pi", "extensions", FAST_CONFIG_BASENAME),
-		globalConfigPath: join(homeDir, ".pi", "agent", "extensions", FAST_CONFIG_BASENAME),
+		globalConfigPath: join(agentDir, "extensions", FAST_CONFIG_BASENAME),
+		legacyGlobalConfigPath: join(legacyAgentDir, "extensions", FAST_CONFIG_BASENAME),
 	};
 }
 
@@ -207,8 +230,25 @@ function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: st
 	writeConfigFile(globalConfigPath, DEFAULT_CONFIG_FILE);
 }
 
-function resolveFastConfig(cwd: string, homeDir: string = homedir()): ResolvedFastConfig {
-	const { projectConfigPath, globalConfigPath } = getConfigPaths(cwd, homeDir);
+function migrateLegacyGlobalConfigFile(legacyGlobalConfigPath: string, globalConfigPath: string): void {
+	if (resolve(legacyGlobalConfigPath) === resolve(globalConfigPath)) {
+		return;
+	}
+	if (existsSync(globalConfigPath) || !existsSync(legacyGlobalConfigPath)) {
+		return;
+	}
+	try {
+		mkdirSync(dirname(globalConfigPath), { recursive: true });
+		copyFileSync(legacyGlobalConfigPath, globalConfigPath);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`[pi-openai-fast] Failed to migrate ${legacyGlobalConfigPath} to ${globalConfigPath}: ${message}`);
+	}
+}
+
+function resolveFastConfig(cwd: string, homeDir?: string): ResolvedFastConfig {
+	const { projectConfigPath, globalConfigPath, legacyGlobalConfigPath } = getConfigPaths(cwd, homeDir);
+	migrateLegacyGlobalConfigFile(legacyGlobalConfigPath, globalConfigPath);
 	ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
 
 	const globalConfig = readConfigFile(globalConfigPath) ?? {};
@@ -415,6 +455,7 @@ export const _test = {
 	parseSupportedModelKey,
 	parseSupportedModels,
 	migrateSupportedModelKeys,
+	migrateLegacyGlobalConfigFile,
 	readConfigFile,
 	resolveFastConfig,
 	isFastSupportedModel,

@@ -43,6 +43,7 @@ function createTempWorkspace(): { cwd: string; homeDir: string; cleanup: () => v
 	const homeDir = join(root, "home");
 	mkdirSync(cwd, { recursive: true });
 	mkdirSync(homeDir, { recursive: true });
+	vi.stubEnv("PI_CODING_AGENT_DIR", join(homeDir, ".pi", "agent"));
 	return {
 		cwd,
 		homeDir,
@@ -356,6 +357,122 @@ describe("pi-openai-fast", () => {
 					ctx,
 				),
 			).toBeUndefined();
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("migrates the legacy ~/.pi/agent global config when PI_CODING_AGENT_DIR points elsewhere", async () => {
+		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		try {
+			vi.stubEnv("HOME", homeDir);
+			const customAgentDir = join(homeDir, "custom-agent");
+			vi.stubEnv("PI_CODING_AGENT_DIR", customAgentDir);
+
+			const legacyConfig = { persistState: true, active: true, supportedModels: ["openai/gpt-5.5"] };
+			const legacyGlobalConfigPath = join(homeDir, ".pi", "agent", "extensions", _test.FAST_CONFIG_BASENAME);
+			mkdirSync(join(homeDir, ".pi", "agent", "extensions"), { recursive: true });
+			writeFileSync(legacyGlobalConfigPath, `${JSON.stringify(legacyConfig, null, 2)}\n`, "utf-8");
+
+			const mockPi = createMockPi();
+			piOpenAIFast(mockPi as unknown as ExtensionAPI);
+
+			const sessionStart = getRegisteredHandler(mockPi, "session_start");
+			const beforeProviderRequest = getRegisteredHandler(mockPi, "before_provider_request");
+			const { ctx, ui } = createMockContext(
+				{ provider: "openai", id: "gpt-5.5" } as ExtensionContext["model"],
+				[],
+				cwd,
+			);
+			await sessionStart({ type: "session_start" }, ctx);
+
+			expect(ui.notify).toHaveBeenCalledWith("Fast mode is on for openai/gpt-5.5.", "info");
+			expect(
+				beforeProviderRequest(
+					{ type: "before_provider_request", payload: { input: "hello" } } as BeforeProviderRequestEvent,
+					ctx,
+				),
+			).toEqual({ input: "hello", service_tier: "priority" });
+
+			const migratedConfigPath = join(customAgentDir, "extensions", _test.FAST_CONFIG_BASENAME);
+			expect(JSON.parse(readFileSync(migratedConfigPath, "utf-8"))).toEqual(legacyConfig);
+			expect(JSON.parse(readFileSync(legacyGlobalConfigPath, "utf-8"))).toEqual(legacyConfig);
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("keeps values from the migrated global config underneath a partial project override", async () => {
+		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		try {
+			vi.stubEnv("HOME", homeDir);
+			const customAgentDir = join(homeDir, "custom-agent");
+			vi.stubEnv("PI_CODING_AGENT_DIR", customAgentDir);
+
+			const legacyGlobalConfigPath = join(homeDir, ".pi", "agent", "extensions", _test.FAST_CONFIG_BASENAME);
+			mkdirSync(join(homeDir, ".pi", "agent", "extensions"), { recursive: true });
+			writeFileSync(
+				legacyGlobalConfigPath,
+				`${JSON.stringify({ persistState: true, active: true }, null, 2)}\n`,
+				"utf-8",
+			);
+			const projectConfigPath = join(cwd, ".pi", "extensions", _test.FAST_CONFIG_BASENAME);
+			mkdirSync(join(cwd, ".pi", "extensions"), { recursive: true });
+			writeFileSync(
+				projectConfigPath,
+				`${JSON.stringify({ supportedModels: ["openai/gpt-5.6-sol"] }, null, 2)}\n`,
+				"utf-8",
+			);
+
+			const mockPi = createMockPi();
+			piOpenAIFast(mockPi as unknown as ExtensionAPI);
+
+			const sessionStart = getRegisteredHandler(mockPi, "session_start");
+			const beforeProviderRequest = getRegisteredHandler(mockPi, "before_provider_request");
+			const { ctx, ui } = createMockContext(
+				{ provider: "openai", id: "gpt-5.6-sol" } as ExtensionContext["model"],
+				[],
+				cwd,
+			);
+			await sessionStart({ type: "session_start" }, ctx);
+
+			expect(ui.notify).toHaveBeenCalledWith("Fast mode is on for openai/gpt-5.6-sol.", "info");
+			expect(
+				beforeProviderRequest(
+					{ type: "before_provider_request", payload: { input: "hello" } } as BeforeProviderRequestEvent,
+					ctx,
+				),
+			).toEqual({ input: "hello", service_tier: "priority" });
+		} finally {
+			cleanup();
+		}
+	});
+
+	it("does not overwrite an existing config in the new agent dir with the legacy one", () => {
+		const { cwd, homeDir, cleanup } = createTempWorkspace();
+		try {
+			vi.stubEnv("HOME", homeDir);
+			const customAgentDir = join(homeDir, "custom-agent");
+			vi.stubEnv("PI_CODING_AGENT_DIR", customAgentDir);
+
+			const legacyGlobalConfigPath = join(homeDir, ".pi", "agent", "extensions", _test.FAST_CONFIG_BASENAME);
+			mkdirSync(join(homeDir, ".pi", "agent", "extensions"), { recursive: true });
+			writeFileSync(
+				legacyGlobalConfigPath,
+				`${JSON.stringify({ persistState: true, active: true, supportedModels: ["openai/gpt-5.5"] }, null, 2)}\n`,
+				"utf-8",
+			);
+			const newGlobalConfig = { persistState: true, active: false, supportedModels: ["openai/gpt-5.4"] };
+			const newGlobalConfigPath = join(customAgentDir, "extensions", _test.FAST_CONFIG_BASENAME);
+			mkdirSync(join(customAgentDir, "extensions"), { recursive: true });
+			writeFileSync(newGlobalConfigPath, `${JSON.stringify(newGlobalConfig, null, 2)}\n`, "utf-8");
+
+			const resolved = _test.resolveFastConfig(cwd);
+
+			expect(resolved.configPath).toBe(newGlobalConfigPath);
+			expect(resolved.active).toBe(false);
+			expect(resolved.supportedModels).toEqual([{ provider: "openai", id: "gpt-5.4" }]);
+			expect(JSON.parse(readFileSync(newGlobalConfigPath, "utf-8"))).toEqual(newGlobalConfig);
 		} finally {
 			cleanup();
 		}
