@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "@earendil-works/pi-coding-agent";
 import type { Static, TObject } from "typebox";
 import { Type } from "typebox";
@@ -243,18 +243,36 @@ function parseConfig(raw: unknown, pathHint: string): FirecrawlConfig {
 	};
 }
 
+// getConfig() re-runs this on every tool call; once a default-config write fails
+// (e.g. read-only HOME), stop retrying so we do not repeat syscalls and warnings.
+// The repeated console writes also corrupt pi's fullscreen TUI, which repaints
+// differentially and so never clears stray output.
+const failedDefaultConfigWrites = new Set<string>();
+
+function warnConfigIssue(message: string, ctx?: ExtensionContext): void {
+	if (ctx?.hasUI) ctx.ui.notify(message, "warning");
+	else console.warn(message);
+}
+
 function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string): void {
-	if (existsSync(projectConfigPath) || existsSync(globalConfigPath)) return;
+	if (
+		failedDefaultConfigWrites.has(globalConfigPath) ||
+		existsSync(projectConfigPath) ||
+		existsSync(globalConfigPath)
+	) {
+		return;
+	}
 	try {
 		mkdirSync(dirname(globalConfigPath), { recursive: true });
 		writeFileSync(globalConfigPath, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, "utf-8");
 	} catch (error) {
+		failedDefaultConfigWrites.add(globalConfigPath);
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-firecrawl] Failed to write ${globalConfigPath}: ${message}`);
 	}
 }
 
-function loadConfig(configPath: string | undefined): FirecrawlConfig | null {
+function loadConfig(configPath: string | undefined, ctx?: ExtensionContext): FirecrawlConfig | null {
 	const candidates: string[] = [];
 	const envConfig = process.env.FIRECRAWL_CONFIG;
 	if (configPath) {
@@ -275,7 +293,7 @@ function loadConfig(configPath: string | undefined): FirecrawlConfig | null {
 			return parseConfig(JSON.parse(raw), candidate);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			console.warn(`Invalid Firecrawl config at ${candidate}: ${message}`);
+			warnConfigIssue(`Invalid Firecrawl config at ${candidate}: ${message}`, ctx);
 		}
 	}
 
@@ -446,9 +464,9 @@ export default function piFirecrawl(pi: ExtensionAPI) {
 		type: "string",
 	});
 
-	function getConfig(): FirecrawlRequestConfig {
+	function getConfig(ctx?: ExtensionContext): FirecrawlRequestConfig {
 		const configFlag = pi.getFlag("firecrawl-config");
-		const config = loadConfig(typeof configFlag === "string" ? configFlag : undefined);
+		const config = loadConfig(typeof configFlag === "string" ? configFlag : undefined, ctx);
 
 		const urlFlag = pi.getFlag("firecrawl-url");
 		const apiKeyFlag = pi.getFlag("firecrawl-api-key");
@@ -514,7 +532,7 @@ export default function piFirecrawl(pi: ExtensionAPI) {
 			description,
 			promptSnippet,
 			parameters,
-			async execute(_toolCallId, params: Static<TParams>, signal, onUpdate, _ctx) {
+			async execute(_toolCallId, params: Static<TParams>, signal, onUpdate, ctx) {
 				if (signal?.aborted) {
 					return { content: [{ type: "text", text: "Cancelled." }], details: { cancelled: true } };
 				}
@@ -523,7 +541,7 @@ export default function piFirecrawl(pi: ExtensionAPI) {
 					details: { status: "pending" },
 				});
 
-				const config = getConfig();
+				const config = getConfig(ctx);
 				const safeBaseUrl = redactUrl(config.baseUrl, config.apiKey);
 				const maxLimits = resolveMaxLimits(config);
 				const { apiArgs, requestedLimits } = splitParams(params as Record<string, unknown>);
