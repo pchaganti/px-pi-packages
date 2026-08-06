@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-08-06
+
+### Fixed
+- Fixed console writes corrupting the frame in pi 0.84's fullscreen TUI, whose renderer repaints differentially and never clears stray output. The missing-API-key notice at `session_start` now routes through the extension UI when one is attached; headless output is unchanged. This notice fires on the exact configuration a new user hits, so it was the most visible instance.
+- Removed the redundant `console.error` calls in the `/synthetic-models` and `/synthetic-quota` handlers. Both sat after a `ctx.ui.notify` carrying the same message and behind an early return on `!ctx.hasUI`, so they only ever ran with a UI attached.
+
+### Changed
+- `FetchSyntheticModelsOptions` gains an optional `notify` callback so the `session_start` refetch reports fallback diagnostics through the UI. The extension-load call runs before the TUI starts and keeps the console defaults, so omitting it preserves existing behavior.
+
 ## [1.2.2] - 2026-07-28
 
 ### Added
