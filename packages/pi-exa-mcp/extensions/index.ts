@@ -353,14 +353,23 @@ function loadConfig(configPath: string | undefined): ExaMcpConfig | null {
 	return null;
 }
 
+// loadConfig runs several times per tool invocation; once a default-config write
+// fails (e.g. read-only HOME), stop retrying so we do not repeat syscalls and warnings.
+const failedDefaultConfigWrites = new Set<string>();
+
 function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string): void {
-	if (existsSync(projectConfigPath) || existsSync(globalConfigPath)) {
+	if (
+		failedDefaultConfigWrites.has(globalConfigPath) ||
+		existsSync(projectConfigPath) ||
+		existsSync(globalConfigPath)
+	) {
 		return;
 	}
 	try {
 		mkdirSync(dirname(globalConfigPath), { recursive: true });
 		writeFileSync(globalConfigPath, `${JSON.stringify(DEFAULT_CONFIG_FILE, null, 2)}\n`, "utf-8");
 	} catch (error) {
+		failedDefaultConfigWrites.add(globalConfigPath);
 		const message = error instanceof Error ? error.message : String(error);
 		console.warn(`[pi-exa-mcp] Failed to write ${globalConfigPath}: ${message}`);
 	}

@@ -1,7 +1,7 @@
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	DEFAULT_CONFIG_FILE,
 	ensureDefaultConfigFile,
@@ -66,5 +66,30 @@ describe("pi-exa-mcp helpers", () => {
 		expect(existsSync(globalConfigPath)).toBe(true);
 		const raw = readFileSync(globalConfigPath, "utf-8");
 		expect(JSON.parse(raw)).toEqual(DEFAULT_CONFIG_FILE);
+	});
+
+	it("warns once and stops retrying when the default config write fails", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-exa-config-"));
+		const projectConfigPath = join(base, "project", ".pi", "extensions", "exa-mcp.json");
+		// A regular file in the parent chain makes mkdirSync fail on every attempt.
+		const blocker = join(base, "blocked");
+		writeFileSync(blocker, "not a directory", "utf-8");
+		const globalConfigPath = join(blocker, "extensions", "exa-mcp.json");
+
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+			expect(warnSpy).toHaveBeenCalledTimes(1);
+			expect(existsSync(globalConfigPath)).toBe(false);
+
+			// Removing the blocker would let a retry succeed. The latch must prevent the
+			// retry entirely, not merely silence the second warning.
+			rmSync(blocker);
+			ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+			expect(existsSync(globalConfigPath)).toBe(false);
+			expect(warnSpy).toHaveBeenCalledTimes(1);
+		} finally {
+			warnSpy.mockRestore();
+		}
 	});
 });
