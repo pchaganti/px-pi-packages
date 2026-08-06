@@ -20,6 +20,7 @@ When Pi is using Anthropic OAuth, this extension intercepts outbound API request
 - **Dynamic alias registration** -- at session start and before each agent turn, reads Pi's live tool registry via `getAllTools()` and registers a schema-only MCP alias for every non-core flat tool, from any extension. This includes tools that other extensions register from lifecycle hooks (e.g. `pi-web-providers`), with no hardcoded extension list to maintain.
 - **Managed tool-call unaliasing** -- when the model calls an MCP alias registered by this extension, rewrites the finalized `toolCall` name back to the original flat tool name during `message_end`, before Pi resolves execution. Direct MCP tools from other extensions are left untouched.
 - **Alias activation tracking** -- auto-activates MCP aliases when their flat counterpart is active under Anthropic OAuth. Tracks provenance (auto-managed vs user-selected) so that disabling OAuth only removes auto-activated aliases, preserving any the user explicitly enabled.
+- **Displayed prose un-cloaking** (Pi >= 0.84) -- the model sees MCP aliases on the wire, so its prose mentions them ("I'll call `mcp__exa_mcp__web_search_exa`") even though the transcript renders tool calls under their flat names. A registered markdown transformer rewrites alias mentions in displayed assistant text (including thinking and streaming updates) back to the flat source names. This is display-only: the session file and the model's context keep the original text, only whole-token mentions of aliases registered by this extension are rewritten (foreign `mcp__` tools are untouched), and user messages are never modified. On Pi versions before 0.84 the transformer is simply not registered.
 
 Non-OAuth Anthropic usage and non-Anthropic providers are left completely unchanged.
 
@@ -53,6 +54,7 @@ No extra configuration is required.
 | `PI_CLAUDE_CODE_USE_DEBUG_LOG` | Set to a file path to enable debug logging. Writes two JSON entries per Anthropic OAuth request: one with `"stage": "before"` (the original payload from Pi) and one with `"stage": "after"` (the transformed payload sent to Anthropic). |
 | `PI_CLAUDE_CODE_USE_DISABLE_TOOL_FILTER` | Set to `1` to disable tool filtering. System prompt rewriting still applies, but all tools pass through unchanged. Useful for debugging whether a tool-filtering issue is causing a problem. |
 | `PI_CLAUDE_CODE_USE_DISABLE_AUTO_ALIAS` | Set to `1` to disable automatic alias derivation. Only user-configured `toolAliases` are registered; other flat-named tools are filtered out on Anthropic OAuth requests as before. |
+| `PI_CLAUDE_CODE_USE_DISABLE_PROSE_UNALIAS` | Set to `1` to disable displayed prose un-cloaking, showing assistant text exactly as the model wrote it (with `mcp__` alias names). Useful when debugging the aliasing layer itself, e.g. checking which names the model actually uses. |
 
 Example:
 

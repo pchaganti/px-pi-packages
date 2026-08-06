@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, MarkdownTransformContext } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import piClaudeCodeUse, { _test } from "../extensions/index.js";
 
@@ -39,6 +39,7 @@ function createMockPi() {
 		on: vi.fn(),
 		registerCommand: vi.fn(),
 		registerFlag: vi.fn(),
+		registerMarkdownTransformer: vi.fn(),
 		registerMessageRenderer: vi.fn(),
 		registerEntryRenderer: vi.fn(),
 		registerProvider: vi.fn(),
@@ -1774,6 +1775,153 @@ describe("pi-claude-code-use", () => {
 			const out = _test.unaliasToolCalls(msg) as typeof msg | undefined;
 			expect(out).toBeDefined();
 			expect((out?.content[0] as { name: string } | undefined)?.name).toBe("run_chain");
+		});
+	});
+
+	// ----------------------------------------------------------------
+	// Displayed prose un-cloaking (markdown transformer)
+	// ----------------------------------------------------------------
+
+	describe("unaliasDisplayedProse (markdown transformer)", () => {
+		function ctx(overrides: Partial<MarkdownTransformContext> = {}): MarkdownTransformContext {
+			return { messageType: "assistant", isStreaming: false, availableWidth: 80, ...overrides };
+		}
+
+		function aliasExa() {
+			_test.refreshAliasMap([], [["web_search_exa", "mcp__exa_mcp__web_search_exa"]]);
+			_test.registeredMcpAliases.add("mcp__exa_mcp__web_search_exa");
+			_test.registeredAliasRoutes.set("mcp__exa_mcp__web_search_exa", "web_search_exa");
+		}
+
+		it("registers unaliasDisplayedProse as the markdown transformer at factory load", async () => {
+			const pi = createMockPi();
+			await piClaudeCodeUse(pi as unknown as ExtensionAPI);
+
+			expect(pi.registerMarkdownTransformer).toHaveBeenCalledTimes(1);
+			expect(pi.registerMarkdownTransformer).toHaveBeenCalledWith(_test.unaliasDisplayedProse);
+
+			// Drive the REGISTERED function (not just the export) with realistic input.
+			aliasExa();
+			const transformer = pi.registerMarkdownTransformer.mock.calls[0]?.[0] as typeof _test.unaliasDisplayedProse;
+			expect(transformer("I'll call `mcp__exa_mcp__web_search_exa` next.", ctx())).toBe(
+				"I'll call `web_search_exa` next.",
+			);
+		});
+
+		it("loads on a pi without registerMarkdownTransformer (peer floor 0.77)", async () => {
+			const { registerMarkdownTransformer: _omit, ...olderPi } = createMockPi();
+			await expect(piClaudeCodeUse(olderPi as unknown as ExtensionAPI)).resolves.toBeUndefined();
+		});
+
+		it("rewrites registered aliases in assistant prose, including repeats and multiple aliases", () => {
+			_test.refreshAliasMap(
+				[],
+				[
+					["web_search_exa", "mcp__exa_mcp__web_search_exa"],
+					["firecrawl_scrape", "mcp__firecrawl__firecrawl_scrape"],
+				],
+			);
+			_test.registeredMcpAliases.add("mcp__exa_mcp__web_search_exa");
+			_test.registeredMcpAliases.add("mcp__firecrawl__firecrawl_scrape");
+
+			const input =
+				"I'll use mcp__exa_mcp__web_search_exa to search, then `mcp__firecrawl__firecrawl_scrape` on each hit.\n" +
+				"If mcp__exa_mcp__web_search_exa fails, I'll stop.";
+			expect(_test.unaliasDisplayedProse(input, ctx())).toBe(
+				"I'll use web_search_exa to search, then `firecrawl_scrape` on each hit.\nIf web_search_exa fails, I'll stop.",
+			);
+		});
+
+		it("rewrites aliases registered from the live registry (end-to-end derivation)", () => {
+			const pi = createMockPi();
+			const tempDir = mkdtempSync(join(tmpdir(), "pi-claude-code-use-"));
+			try {
+				pi.getAllTools.mockReturnValue([
+					mockTool("web_search_exa", { path: "/x/node_modules/@benvargas/pi-exa-mcp/extensions/index.ts" }),
+				]);
+				registerAliasesIsolated(pi, tempDir);
+
+				expect(_test.unaliasDisplayedProse("Calling mcp__exa_mcp__web_search_exa now.", ctx())).toBe(
+					"Calling web_search_exa now.",
+				);
+			} finally {
+				rmSync(tempDir, { recursive: true, force: true });
+			}
+		});
+
+		it("transforms streaming updates the same as finalized text (no finalize flicker)", () => {
+			aliasExa();
+			const input = "Searching via mcp__exa_mcp__web_search_exa...";
+			const finalized = _test.unaliasDisplayedProse(input, ctx({ isStreaming: false }));
+			const streaming = _test.unaliasDisplayedProse(input, ctx({ isStreaming: true }));
+			expect(streaming).toBe("Searching via web_search_exa...");
+			expect(streaming).toBe(finalized);
+		});
+
+		it("transforms assistant-thinking text", () => {
+			aliasExa();
+			expect(
+				_test.unaliasDisplayedProse("Maybe mcp__exa_mcp__web_search_exa?", ctx({ messageType: "assistant-thinking" })),
+			).toBe("Maybe web_search_exa?");
+		});
+
+		it("leaves user messages untouched", () => {
+			aliasExa();
+			const input = "please run mcp__exa_mcp__web_search_exa";
+			expect(_test.unaliasDisplayedProse(input, ctx({ messageType: "user" }))).toBe(input);
+		});
+
+		it("leaves foreign mcp__ names untouched", () => {
+			aliasExa();
+			const input = "I'll call mcp__real_server__lookup for this.";
+			expect(_test.unaliasDisplayedProse(input, ctx())).toBe(input);
+		});
+
+		it("resolves stale aliases via registeredAliasRoutes when the current mapping is gone", () => {
+			// Alias was registered, then a config change removed its MCP_TO_FLAT
+			// mapping; the permanent route must still resolve it (same precedence
+			// as unaliasToolCalls).
+			_test.registeredMcpAliases.add("mcp__exa__web_search");
+			_test.registeredAliasRoutes.set("mcp__exa__web_search", "web_search_exa");
+
+			expect(_test.unaliasDisplayedProse("Retry mcp__exa__web_search.", ctx())).toBe("Retry web_search_exa.");
+		});
+
+		it("rewrites mixed-case alias mentions (case-insensitive lookup)", () => {
+			_test.refreshAliasMap([["my_tool", "MCP__Foo__Bar"]]);
+			_test.registeredMcpAliases.add("mcp__foo__bar");
+
+			expect(_test.unaliasDisplayedProse("Using MCP__Foo__Bar here.", ctx())).toBe("Using my_tool here.");
+		});
+
+		it("only rewrites whole tokens, not superstrings or embedded matches", () => {
+			aliasExa();
+			const input = "See mcp__exa_mcp__web_search_exa_v2 and foo_mcp__exa_mcp__web_search_exa.";
+			expect(_test.unaliasDisplayedProse(input, ctx())).toBe(input);
+		});
+
+		it("returns the input unchanged when no aliases are registered", () => {
+			const input = "Plain prose mentioning mcp__something__else and `code`.";
+			expect(_test.unaliasDisplayedProse(input, ctx())).toBe(input);
+		});
+
+		it("does not invert system-prompt rewrites in displayed text", () => {
+			aliasExa();
+			// rewritePromptText substitutions apply only to the (never-rendered)
+			// system prompt; prose about "the cli itself" must stay as written.
+			const input = "Read about the cli itself, cli .md files, and cli packages.";
+			expect(_test.unaliasDisplayedProse(input, ctx())).toBe(input);
+		});
+
+		it("can be disabled with PI_CLAUDE_CODE_USE_DISABLE_PROSE_UNALIAS=1", () => {
+			vi.stubEnv("PI_CLAUDE_CODE_USE_DISABLE_PROSE_UNALIAS", "1");
+			try {
+				aliasExa();
+				const input = "Calling mcp__exa_mcp__web_search_exa.";
+				expect(_test.unaliasDisplayedProse(input, ctx())).toBe(input);
+			} finally {
+				vi.unstubAllEnvs();
+			}
 		});
 	});
 });

@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ExtensionAPI, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI, getAgentDir, type MarkdownTransformContext } from "@earendil-works/pi-coding-agent";
 
 // ============================================================================
 // Types
@@ -172,6 +172,45 @@ function unaliasToolCalls(message: unknown): unknown {
 		return MCP_TO_FLAT.get(nameLc) ?? registeredAliasRoutes.get(nameLc);
 	});
 	return content === message.content ? undefined : { ...message, content };
+}
+
+// ============================================================================
+// Displayed prose un-cloaking (markdown transformer, pi >= 0.84)
+//
+// The model sees MCP-style aliases on the wire, so its prose mentions them
+// ("I'll call `mcp__exa_mcp__web_search_exa`"), while the session and rendered
+// toolCall blocks keep flat names (unaliasToolCalls at message_end). This
+// display-only transformer rewrites aliases registered by THIS extension back
+// to their flat source names in assistant prose so the transcript reads
+// consistently. Pi applies markdown transformers only when rendering the
+// interactive transcript; the session file and model context keep the
+// original text. Same lookup precedence and gating as unaliasToolCalls.
+// ============================================================================
+
+// Whole-token alias mentions: "mcp__" (any case) followed by tool-name
+// characters, not preceded by one (so "foo_mcp__x" is a different token).
+// Longest-token matching means a superstring of a registered alias
+// ("mcp__exa__search_extra") is looked up as a whole and left unchanged.
+const PROSE_ALIAS_PATTERN = /(?<![A-Za-z0-9_-])mcp__[A-Za-z0-9_-]+/gi;
+
+function unaliasDisplayedProse(markdown: string, context: MarkdownTransformContext): string {
+	// Assistant prose only (final and streaming alike — skipping streaming
+	// updates would make names flip when the message finalizes). User messages
+	// show what the user actually typed.
+	if (context.messageType !== "assistant" && context.messageType !== "assistant-thinking") {
+		return markdown;
+	}
+	if (process.env.PI_CLAUDE_CODE_USE_DISABLE_PROSE_UNALIAS === "1") {
+		return markdown;
+	}
+	if (registeredMcpAliases.size === 0) {
+		return markdown;
+	}
+	return markdown.replace(PROSE_ALIAS_PATTERN, (token) => {
+		const tokenLc = lower(token);
+		if (!registeredMcpAliases.has(tokenLc)) return token;
+		return MCP_TO_FLAT.get(tokenLc) ?? registeredAliasRoutes.get(tokenLc) ?? token;
+	});
 }
 
 // ============================================================================
@@ -818,6 +857,12 @@ function syncAliasActivation(pi: ExtensionAPI, enableAliases: boolean): void {
 // ============================================================================
 
 export default async function piClaudeCodeUse(pi: ExtensionAPI): Promise<void> {
+	// Display-only prose un-cloaking. The API is new in pi 0.84 while the peer
+	// floor is 0.77, so feature-detect instead of raising the floor.
+	if (typeof pi.registerMarkdownTransformer === "function") {
+		pi.registerMarkdownTransformer(unaliasDisplayedProse);
+	}
+
 	pi.on("session_start", async (_event, ctx) => {
 		registerMcpAliases(pi, { cwd: ctx.cwd });
 	});
@@ -899,5 +944,6 @@ export const _test = {
 	},
 	syncAliasActivation,
 	transformPayload,
+	unaliasDisplayedProse,
 	unaliasToolCalls,
 };

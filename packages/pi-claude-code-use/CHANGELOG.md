@@ -7,6 +7,17 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-06
+
+### Added
+- Added display-only un-cloaking of alias tool names in assistant prose through pi 0.84's `pi.registerMarkdownTransformer()`. The model sees MCP-style aliases on the wire, so its prose mentions them ("I'll call `mcp__exa_mcp__web_search_exa`") while rendered `toolCall` blocks already showed flat names. The transformer rewrites aliases registered by this extension back to their flat source names when rendering the transcript; the session file and model context keep the original text.
+- Added `PI_CLAUDE_CODE_USE_DISABLE_PROSE_UNALIAS=1` to disable the display transform.
+
+### Changed
+- The transformer applies to streaming and final assistant messages alike. Skipping streaming updates would make names flip when the message finalizes.
+- The hook is feature-detected rather than required, so the declared peer floor stays at `>=0.77.0` even though `registerMarkdownTransformer` is new in pi 0.84.
+- Replaced `!model || model.provider !== "anthropic"` with `model?.provider !== "anthropic"` in the `before_provider_request` guard. Behaviorally identical; satisfies Biome 2.5.7's `useOptionalChain`.
+
 ## [2.0.0] - 2026-07-31
 
 ### Changed
