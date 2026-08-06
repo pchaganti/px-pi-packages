@@ -1526,7 +1526,7 @@ describe("pi-claude-code-use", () => {
 			};
 			const out = _test.unaliasToolCalls(msg) as typeof msg | undefined;
 			expect(out).toBeDefined();
-			expect((out?.content[0] as { name: string }).name).toBe("web_search_exa");
+			expect((out?.content[0] as { name: string } | undefined)?.name).toBe("web_search_exa");
 		});
 
 		it("keeps user alias mappings for flat tools that are not in the registry", () => {
@@ -1721,7 +1721,7 @@ describe("pi-claude-code-use", () => {
 
 				const out = _test.unaliasToolCalls(msg) as typeof msg | undefined;
 				expect(out).toBeDefined();
-				expect((out?.content[0] as { name: string }).name).toBe("web_search_exa");
+				expect((out?.content[0] as { name: string } | undefined)?.name).toBe("web_search_exa");
 			} finally {
 				rmSync(tempDir, { recursive: true, force: true });
 			}
@@ -1757,8 +1757,8 @@ describe("pi-claude-code-use", () => {
 
 			const out = _test.unaliasToolCalls(msg) as typeof msg | undefined;
 			expect(out).toBeDefined();
-			expect((out?.content[0] as { name: string }).name).toBe("run_chain");
-			expect((out?.content[1] as { name: string }).name).toBe("mcp__exa__web_search");
+			expect((out?.content[0] as { name: string } | undefined)?.name).toBe("run_chain");
+			expect((out?.content[1] as { name: string } | undefined)?.name).toBe("mcp__exa__web_search");
 		});
 
 		it("rewrites mixed-case mcp__ toolCall names (case-insensitive lookup)", () => {
@@ -1773,7 +1773,7 @@ describe("pi-claude-code-use", () => {
 
 			const out = _test.unaliasToolCalls(msg) as typeof msg | undefined;
 			expect(out).toBeDefined();
-			expect((out?.content[0] as { name: string }).name).toBe("run_chain");
+			expect((out?.content[0] as { name: string } | undefined)?.name).toBe("run_chain");
 		});
 	});
 });

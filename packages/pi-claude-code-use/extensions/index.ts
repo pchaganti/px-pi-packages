@@ -838,7 +838,7 @@ export default async function piClaudeCodeUse(pi: ExtensionAPI): Promise<void> {
 
 	pi.on("before_provider_request", (event, ctx) => {
 		const model = ctx.model;
-		if (!model || model.provider !== "anthropic" || !ctx.modelRegistry.isUsingOAuth(model)) {
+		if (model?.provider !== "anthropic" || !ctx.modelRegistry.isUsingOAuth(model)) {
 			return undefined;
 		}
 		if (!isPlainObject(event.payload)) {

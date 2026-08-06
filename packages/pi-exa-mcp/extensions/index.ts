@@ -701,15 +701,15 @@ const codeContextParams = Type.Object(
 // =============================================================================
 
 export {
-	parseTimeoutMs,
+	DEFAULT_CONFIG_FILE,
+	ensureDefaultConfigFile,
 	normalizeNumber,
 	normalizeTools,
+	parseTimeoutMs,
 	parseToolsFromUrl,
-	splitParams,
 	resolveEffectiveLimits,
 	resolveEndpoint,
-	ensureDefaultConfigFile,
-	DEFAULT_CONFIG_FILE,
+	splitParams,
 };
 
 export default function exaMcp(pi: ExtensionAPI) {

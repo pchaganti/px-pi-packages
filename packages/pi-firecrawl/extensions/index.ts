@@ -405,15 +405,15 @@ const searchParams = Type.Object(
 );
 
 export {
-	parseTimeoutMs,
+	CONFIG_FILENAME,
+	DEFAULT_CONFIG_FILE,
+	ensureDefaultConfigFile,
+	normalizeHeaders,
 	normalizeNumber,
 	normalizeTools,
-	normalizeHeaders,
-	splitParams,
+	parseTimeoutMs,
 	resolveEffectiveLimits,
-	ensureDefaultConfigFile,
-	DEFAULT_CONFIG_FILE,
-	CONFIG_FILENAME,
+	splitParams,
 };
 
 export default function piFirecrawl(pi: ExtensionAPI) {

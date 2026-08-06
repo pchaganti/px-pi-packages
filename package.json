@@ -42,13 +42,12 @@
     ]
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.5",
-    "@earendil-works/pi-agent-core": "^0.81.0",
-    "@earendil-works/pi-ai": "^0.81.0",
-    "@earendil-works/pi-coding-agent": "^0.81.0",
-    "@earendil-works/pi-tui": "^0.81.0",
+    "@biomejs/biome": "2.5.7",
+    "@earendil-works/pi-agent-core": "^0.84.0",
+    "@earendil-works/pi-ai": "^0.84.0",
+    "@earendil-works/pi-coding-agent": "^0.84.0",
+    "@earendil-works/pi-tui": "^0.84.0",
     "@types/node": "^22.0.0",
-    "typebox": "1.1.38",
     "typescript": "^5.5.0",
     "vitest": "^4.0.18"
   },
