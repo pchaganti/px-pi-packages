@@ -7,6 +7,12 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-06
+
+### Fixed
+- Documented why pi 0.84.0's `samplingParams` does not replace this extension. The release notes present it as the general way to pass arbitrary OpenAI-compatible parameters, so a reader will reasonably set `text.verbosity` through a model override — which on `openai-codex` silently does nothing. pi-ai scopes `samplingParams` to OpenAI-compatible adapters (completions, responses, Azure responses), and the Codex adapter is not one of them; it builds its own request and hardcodes `text.verbosity`, defaulting to `low`.
+- Documented the shallow-merge hazard on the plain `openai` provider, where `samplingParams` is applied through a top-level `Object.assign`, so a nested `text` object replaces pi's entire `text` field instead of merging into it. This extension preserves existing `text` fields and replaces only `text.verbosity`.
+
 ## [1.1.0] - 2026-08-06
 
 ### Added
