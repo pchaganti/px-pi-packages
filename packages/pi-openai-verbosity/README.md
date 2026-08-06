@@ -130,6 +130,42 @@ You can change any value to override the default for that model. If you have an 
 older version of this extension, your file's entries win over these defaults, and entries for model slugs pi no
 longer exposes are simply ignored.
 
+## Why not `samplingParams`?
+
+pi 0.84.0 added `samplingParams`, which lets you pass arbitrary OpenAI-compatible parameters through
+`models.json`, model overrides, and extension providers. Reading those release notes, it is natural to assume
+this extension is now redundant and that you can write:
+
+```json
+{
+  "modelOverrides": {
+    "openai-codex/gpt-5.5": {
+      "samplingParams": { "text": { "verbosity": "medium" } }
+    }
+  }
+}
+```
+
+**On `openai-codex` this silently does nothing.** There is no error and no warning; the setting is simply never
+applied. `samplingParams` is explicitly scoped to OpenAI-*compatible* adapters — pi-ai documents it as "only
+applied by OpenAI-compatible adapters (completions, responses, Azure responses); other APIs ignore it" — and
+the Codex adapter is not one of them. It builds its own request and hardcodes `text: { verbosity: ... }`,
+defaulting to `low`.
+
+So for the `openai-codex` provider, this extension remains the only way to set per-model verbosity.
+
+### If you use `samplingParams` on the plain `openai` provider
+
+There it *is* applied, but the merge is a shallow top-level `Object.assign`. That means:
+
+```json
+{ "samplingParams": { "text": { "verbosity": "medium" } } }
+```
+
+replaces the **entire** `text` object rather than merging into it, discarding any other `text` fields pi had
+already set. This extension deliberately does the opposite: it preserves existing `text` fields and replaces
+only `text.verbosity`.
+
 ## Debugging
 
 Pi does not currently expose a simple CLI flag to print the final provider request body. To verify this extension is
@@ -159,7 +195,9 @@ delete it when you are done debugging.
 
 - This extension only changes outgoing provider request payloads.
 - Existing `text` fields are preserved, and only `text.verbosity` is replaced.
-- Only the `openai-codex` provider is supported.
+- Only the `openai-codex` provider is supported. pi 0.84.0's `samplingParams` does not reach that provider, so
+  this extension remains the only per-model verbosity control for it — see
+  [Why not `samplingParams`?](#why-not-samplingparams).
 - This extension is most useful if you want different verbosity settings for different OpenAI Codex model slugs.
 
 ## Uninstall
