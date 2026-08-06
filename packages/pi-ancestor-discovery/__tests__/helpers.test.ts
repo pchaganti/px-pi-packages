@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { describe, expect, it, vi } from "vitest";
 import { _test, discoverResources, resolveBoundary } from "../extensions/index.js";
 
 describe("pi-ancestor-discovery helpers", () => {
@@ -67,5 +68,40 @@ describe("pi-ancestor-discovery helpers", () => {
 		const raw = readFileSync(globalConfigPath, "utf-8");
 		const parsed = JSON.parse(raw);
 		expect(parsed).toEqual(_test.DEFAULT_CONFIG);
+	});
+
+	it("routes malformed-config warnings to ctx.ui.notify when UI is attached", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-ancestor-warn-"));
+		const configPath = join(base, "pi-ancestor-discovery.json");
+		writeFileSync(configPath, "{ not json", "utf-8");
+
+		const notify = vi.fn();
+		const ctx = { hasUI: true, ui: { notify } } as unknown as ExtensionContext;
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		try {
+			expect(_test.readConfigFile(configPath, ctx)).toBeNull();
+			expect(notify).toHaveBeenCalledTimes(1);
+			expect(notify).toHaveBeenCalledWith(expect.stringContaining(configPath), "warning");
+			expect(warnSpy).not.toHaveBeenCalled();
+		} finally {
+			warnSpy.mockRestore();
+		}
+	});
+
+	it("falls back to console.warn for malformed config without UI", () => {
+		const base = mkdtempSync(join(tmpdir(), "pi-ancestor-warn-"));
+		const configPath = join(base, "pi-ancestor-discovery.json");
+		writeFileSync(configPath, "{ not json", "utf-8");
+
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		try {
+			expect(_test.readConfigFile(configPath)).toBeNull();
+			expect(warnSpy).toHaveBeenCalledTimes(1);
+			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(configPath));
+		} finally {
+			warnSpy.mockRestore();
+		}
 	});
 });

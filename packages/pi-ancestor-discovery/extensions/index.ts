@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const CONFIG_BASENAME = "pi-ancestor-discovery.json";
 
@@ -77,11 +77,11 @@ export function resolveBoundary(input: string | undefined, cwd: string): string 
 	return isAbsolute(expanded) ? expanded : resolve(cwd, expanded);
 }
 
-export function resolveConfig(cwd: string): ResolvedConfig {
+export function resolveConfig(cwd: string, ctx?: ExtensionContext): ResolvedConfig {
 	const projectConfigPath = join(cwd, ".pi", "extensions", CONFIG_BASENAME);
 	const globalConfigPath = join(homedir(), ".pi", "agent", "extensions", CONFIG_BASENAME);
 
-	const selected = ensureDefaultConfig(projectConfigPath, globalConfigPath) ?? {};
+	const selected = ensureDefaultConfig(projectConfigPath, globalConfigPath, ctx) ?? {};
 	const boundary = resolveBoundary(selected.boundary, cwd);
 
 	return {
@@ -126,9 +126,9 @@ export function discoverResources(options: DiscoverOptions): {
 }
 
 export default function (pi: ExtensionAPI): void {
-	pi.on("resources_discover", (event) => {
+	pi.on("resources_discover", (event, ctx) => {
 		const cwd = event.cwd ?? process.cwd();
-		const config = resolveConfig(cwd);
+		const config = resolveConfig(cwd, ctx);
 		return discoverResources({
 			cwd,
 			boundary: config.boundary,
@@ -137,7 +137,15 @@ export default function (pi: ExtensionAPI): void {
 	});
 }
 
-function readConfigFile(filePath: string): AncestorDiscoveryConfig | null {
+function warn(message: string, ctx?: ExtensionContext): void {
+	if (ctx?.hasUI) {
+		ctx.ui.notify(message, "warning");
+	} else {
+		console.warn(message);
+	}
+}
+
+function readConfigFile(filePath: string, ctx?: ExtensionContext): AncestorDiscoveryConfig | null {
 	if (!existsSync(filePath)) {
 		return null;
 	}
@@ -146,18 +154,22 @@ function readConfigFile(filePath: string): AncestorDiscoveryConfig | null {
 		return JSON.parse(raw) as AncestorDiscoveryConfig;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-ancestor-discovery] Failed to read ${filePath}: ${message}`);
+		warn(`[pi-ancestor-discovery] Failed to read ${filePath}: ${message}`, ctx);
 		return null;
 	}
 }
 
-function ensureDefaultConfig(projectConfigPath: string, globalConfigPath: string): AncestorDiscoveryConfig | null {
-	const projectConfig = readConfigFile(projectConfigPath);
+function ensureDefaultConfig(
+	projectConfigPath: string,
+	globalConfigPath: string,
+	ctx?: ExtensionContext,
+): AncestorDiscoveryConfig | null {
+	const projectConfig = readConfigFile(projectConfigPath, ctx);
 	if (projectConfig) {
 		return projectConfig;
 	}
 
-	const globalConfig = readConfigFile(globalConfigPath);
+	const globalConfig = readConfigFile(globalConfigPath, ctx);
 	if (globalConfig) {
 		return globalConfig;
 	}
@@ -168,7 +180,7 @@ function ensureDefaultConfig(projectConfigPath: string, globalConfigPath: string
 		return DEFAULT_CONFIG;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		console.warn(`[pi-ancestor-discovery] Failed to write ${globalConfigPath}: ${message}`);
+		warn(`[pi-ancestor-discovery] Failed to write ${globalConfigPath}: ${message}`, ctx);
 		return DEFAULT_CONFIG;
 	}
 }
