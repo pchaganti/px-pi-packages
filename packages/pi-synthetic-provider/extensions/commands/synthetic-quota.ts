@@ -277,7 +277,6 @@ export function registerSyntheticQuotaCommand(pi: ExtensionAPI): void {
 			} catch (error) {
 				const errorMessage = error instanceof Error ? error.message : String(error);
 				ctx.ui.notify(`Failed to fetch quota: ${errorMessage}`, "error");
-				console.error("[Synthetic Provider] Quota fetch failed:", error);
 			}
 		},
 	});

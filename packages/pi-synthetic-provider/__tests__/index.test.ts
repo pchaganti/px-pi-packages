@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import syntheticProvider, { getFallbackModels } from "../extensions/index.js";
 
 const GLM_5_2_MODEL_ID = "hf:zai-org/GLM-5.2";
@@ -322,6 +322,91 @@ describe("pi-synthetic-provider", () => {
 
 		const eventNames = mockPi.on.mock.calls.map(([name]) => name);
 		expect(eventNames).toEqual(expect.arrayContaining(["session_start", "model_select"]));
+	});
+
+	describe("session_start handler", () => {
+		let savedApiKey: string | undefined;
+
+		beforeEach(() => {
+			savedApiKey = process.env.SYNTHETIC_API_KEY;
+			delete process.env.SYNTHETIC_API_KEY;
+		});
+		afterEach(() => {
+			if (savedApiKey !== undefined) {
+				process.env.SYNTHETIC_API_KEY = savedApiKey;
+			} else {
+				delete process.env.SYNTHETIC_API_KEY;
+			}
+		});
+
+		const getSessionStartHandler = (mockPi: ReturnType<typeof createMockPi>) => {
+			const call = mockPi.on.mock.calls.find(([name]) => name === "session_start");
+			if (!call) throw new Error("session_start handler was not registered");
+			return call[1] as (event: unknown, ctx: unknown) => Promise<void>;
+		};
+
+		const createSessionCtx = (overrides: { hasUI?: boolean } = {}) => ({
+			hasUI: overrides.hasUI ?? true,
+			ui: { notify: vi.fn() },
+			modelRegistry: { getApiKeyForProvider: vi.fn().mockResolvedValue(undefined) },
+		});
+
+		it("notifies through the UI when no API key is configured and a UI is attached", async () => {
+			stubModelsFetch();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			const mockPi = createMockPi();
+			await syntheticProvider(mockPi as unknown as ExtensionAPI);
+
+			const ctx = createSessionCtx();
+			await getSessionStartHandler(mockPi)(undefined, ctx);
+
+			expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("not configured"), "warning");
+			expect(logSpy).not.toHaveBeenCalled();
+		});
+
+		it("logs to the console when no API key is configured and no UI is attached", async () => {
+			stubModelsFetch();
+			const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+			const mockPi = createMockPi();
+			await syntheticProvider(mockPi as unknown as ExtensionAPI);
+
+			const ctx = createSessionCtx({ hasUI: false });
+			await getSessionStartHandler(mockPi)(undefined, ctx);
+
+			expect(ctx.ui.notify).not.toHaveBeenCalled();
+			expect(logSpy).toHaveBeenCalledWith("[Synthetic Provider] API key not configured.");
+			expect(logSpy).toHaveBeenCalledWith("  2. Add to ~/.pi/agent/auth.json (see README for details)");
+		});
+
+		it("routes model fetch failures through the UI instead of the console", async () => {
+			const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+			vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("catalog down")));
+			const mockPi = createMockPi();
+			await syntheticProvider(mockPi as unknown as ExtensionAPI);
+			// The startup fetch runs before any UI exists and keeps its console fallback.
+			expect(errorSpy).toHaveBeenCalledTimes(1);
+			errorSpy.mockClear();
+
+			const ctx = createSessionCtx();
+			await getSessionStartHandler(mockPi)(undefined, ctx);
+
+			expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("catalog down"), "error");
+			expect(errorSpy).not.toHaveBeenCalled();
+		});
+
+		it("keeps console diagnostics for model fetch failures when no UI is attached", async () => {
+			const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+			vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("catalog down")));
+			const mockPi = createMockPi();
+			await syntheticProvider(mockPi as unknown as ExtensionAPI);
+			errorSpy.mockClear();
+
+			const ctx = createSessionCtx({ hasUI: false });
+			await getSessionStartHandler(mockPi)(undefined, ctx);
+
+			expect(ctx.ui.notify).not.toHaveBeenCalled();
+			expect(errorSpy).toHaveBeenCalledWith("[Synthetic Provider] Failed to fetch models:", expect.any(Error));
+		});
 	});
 
 	it("uses fallback startup models when the live catalog filters to empty", async () => {

@@ -203,6 +203,14 @@ export function getSyntheticModelOverrides(modelId: string, model?: SyntheticMod
 
 export interface FetchSyntheticModelsOptions {
 	timeoutMs?: number;
+	/**
+	 * Receives fallback diagnostics instead of the console. Callers on a
+	 * UI-attached path (e.g. session_start) must supply this: pi's fullscreen
+	 * renderer repaints differentially, so stray console writes corrupt the
+	 * frame. When omitted, diagnostics go to the console, which is only safe
+	 * before the TUI starts (extension loading) or when no UI is attached.
+	 */
+	notify?: (message: string, level: "warning" | "error") => void;
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs?: number): Promise<Response> {
@@ -293,13 +301,23 @@ export async function fetchSyntheticModels(
 		}
 
 		if (models.length === 0) {
-			console.warn("[Synthetic Provider] Live model catalog returned no supported models; using fallback models");
+			const message = "[Synthetic Provider] Live model catalog returned no supported models; using fallback models";
+			if (options.notify) {
+				options.notify(message, "warning");
+			} else {
+				console.warn(message);
+			}
 			return getFallbackModels();
 		}
 
 		return models;
 	} catch (error) {
-		console.error("[Synthetic Provider] Failed to fetch models:", error);
+		if (options.notify) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			options.notify(`[Synthetic Provider] Failed to fetch models: ${errorMessage}`, "error");
+		} else {
+			console.error("[Synthetic Provider] Failed to fetch models:", error);
+		}
 		// Return fallback models if API is unavailable
 		return getFallbackModels();
 	}

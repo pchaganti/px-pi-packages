@@ -88,16 +88,29 @@ export default async function (pi: ExtensionAPI) {
 		const hasKey = await hasSyntheticApiKey(ctx);
 
 		if (!hasKey) {
-			console.log("[Synthetic Provider] API key not configured.");
-			console.log("[Synthetic Provider] Options:");
-			console.log("  1. Set SYNTHETIC_API_KEY environment variable");
-			console.log(`  2. Add to ${AUTH_JSON_PATH} (see README for details)`);
+			// Never write to the console with a UI attached: pi's fullscreen renderer
+			// repaints differentially, so stray console output corrupts the frame.
+			if (ctx.hasUI) {
+				ctx.ui.notify(
+					`Synthetic API key not configured. Set SYNTHETIC_API_KEY or add to ${AUTH_JSON_PATH} (see README for details).`,
+					"warning",
+				);
+			} else {
+				console.log("[Synthetic Provider] API key not configured.");
+				console.log("[Synthetic Provider] Options:");
+				console.log("  1. Set SYNTHETIC_API_KEY environment variable");
+				console.log(`  2. Add to ${AUTH_JSON_PATH} (see README for details)`);
+			}
 		}
 
 		// Fetch live models and update the runtime provider registration.
 		// fetchSyntheticModels() returns fallback models if the API is unavailable,
-		// slow, or returns no supported models.
-		const models = await fetchSyntheticModels(apiKey, { timeoutMs: SYNTHETIC_MODELS_FETCH_TIMEOUT_MS });
+		// slow, or returns no supported models. With a UI attached, fetch
+		// diagnostics must go through it; headless keeps the console defaults.
+		const models = await fetchSyntheticModels(apiKey, {
+			timeoutMs: SYNTHETIC_MODELS_FETCH_TIMEOUT_MS,
+			...(ctx.hasUI ? { notify: (message: string, level: "warning" | "error") => ctx.ui.notify(message, level) } : {}),
+		});
 
 		pi.registerProvider("synthetic", {
 			baseUrl: SYNTHETIC_API_BASE_URL,
