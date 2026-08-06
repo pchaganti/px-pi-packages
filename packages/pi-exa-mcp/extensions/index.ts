@@ -7,8 +7,11 @@
  * Setup:
  * 1. Install: pi install npm:@benvargas/exa-mcp-cli
  * 2. Optional config:
- *    - JSON config: ~/.pi/agent/extensions/exa-mcp.json or .pi/extensions/exa-mcp.json
+ *    - JSON config: <agent-dir>/extensions/exa-mcp.json (agent dir defaults to ~/.pi/agent
+ *      and honors PI_CODING_AGENT_DIR) or .pi/extensions/exa-mcp.json
  *      (or set EXA_MCP_CONFIG / --exa-mcp-config for a custom path)
+ *      When PI_CODING_AGENT_DIR relocates the agent dir, an existing
+ *      ~/.pi/agent/extensions/exa-mcp.json is still honored as a fallback.
  *      Keys: url, tools, apiKey, timeoutMs, protocolVersion, maxBytes, maxLines
  *    - EXA_MCP_URL (default: https://mcp.exa.ai/mcp)
  *    - EXA_MCP_TOOLS (comma-separated list, appended to URL if tools param missing)
@@ -35,7 +38,13 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES, formatSize, truncateHead } from "@earendil-works/pi-coding-agent";
+import {
+	DEFAULT_MAX_BYTES,
+	DEFAULT_MAX_LINES,
+	formatSize,
+	getAgentDir,
+	truncateHead,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 // =============================================================================
@@ -336,9 +345,16 @@ function loadConfig(configPath: string | undefined): ExaMcpConfig | null {
 		candidates.push(resolveConfigPath(envConfig));
 	} else {
 		const projectConfigPath = join(process.cwd(), ".pi", "extensions", "exa-mcp.json");
-		const globalConfigPath = join(homedir(), ".pi", "agent", "extensions", "exa-mcp.json");
-		ensureDefaultConfigFile(projectConfigPath, globalConfigPath);
+		const globalConfigPath = join(getAgentDir(), "extensions", "exa-mcp.json");
+		// Configs created at the formerly documented home path must keep working when
+		// PI_CODING_AGENT_DIR relocates the agent dir; honor them as a last-resort fallback.
+		const legacyConfigPath = join(homedir(), ".pi", "agent", "extensions", "exa-mcp.json");
+		const hasLegacyFallback = legacyConfigPath !== globalConfigPath;
+		ensureDefaultConfigFile(projectConfigPath, globalConfigPath, hasLegacyFallback ? legacyConfigPath : undefined);
 		candidates.push(projectConfigPath, globalConfigPath);
+		if (hasLegacyFallback) {
+			candidates.push(legacyConfigPath);
+		}
 	}
 
 	for (const candidate of candidates) {
@@ -357,11 +373,12 @@ function loadConfig(configPath: string | undefined): ExaMcpConfig | null {
 // fails (e.g. read-only HOME), stop retrying so we do not repeat syscalls and warnings.
 const failedDefaultConfigWrites = new Set<string>();
 
-function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string): void {
+function ensureDefaultConfigFile(projectConfigPath: string, globalConfigPath: string, legacyConfigPath?: string): void {
 	if (
 		failedDefaultConfigWrites.has(globalConfigPath) ||
 		existsSync(projectConfigPath) ||
-		existsSync(globalConfigPath)
+		existsSync(globalConfigPath) ||
+		(legacyConfigPath !== undefined && existsSync(legacyConfigPath))
 	) {
 		return;
 	}
@@ -744,7 +761,7 @@ export default function exaMcp(pi: ExtensionAPI) {
 		type: "string",
 	});
 	pi.registerFlag("exa-mcp-config", {
-		description: "Path to JSON config file (defaults to ~/.pi/agent/extensions/exa-mcp.json).",
+		description: "Path to JSON config file (defaults to extensions/exa-mcp.json in the pi agent directory).",
 		type: "string",
 	});
 	pi.registerFlag("exa-mcp-max-bytes", {

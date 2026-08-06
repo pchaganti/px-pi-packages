@@ -37,7 +37,7 @@ pi
 
 ### Option 2: JSON Config
 
-Create `~/.pi/agent/extensions/exa-mcp.json`:
+Create `~/.pi/agent/extensions/exa-mcp.json` (or `$PI_CODING_AGENT_DIR/extensions/exa-mcp.json` if you relocate pi's agent directory):
 
 ```json
 {
@@ -102,7 +102,8 @@ Config files are loaded in order (first match wins):
 1. Path from `--exa-mcp-config` flag
 2. Path from `EXA_MCP_CONFIG` environment variable
 3. `./.pi/extensions/exa-mcp.json` (project-level)
-4. `~/.pi/agent/extensions/exa-mcp.json` (global)
+4. `<agent-dir>/extensions/exa-mcp.json` (global) — the agent directory is resolved the same way pi resolves it: `PI_CODING_AGENT_DIR` if set, otherwise `~/.pi/agent`
+5. `~/.pi/agent/extensions/exa-mcp.json` (legacy fallback) — only consulted when `PI_CODING_AGENT_DIR` relocates the agent directory, so configs created at the previously documented home path keep working
 
 If none exist, the extension writes a default config to the global path with `apiKey` set to `null`.
 
