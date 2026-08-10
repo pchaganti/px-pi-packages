@@ -9,6 +9,7 @@ import type { SyntheticModel, SyntheticModelsResponse } from "./types.js";
 
 export const GLM_5_2_MODEL_ID = "hf:zai-org/GLM-5.2";
 export const GLM_4_7_FLASH_MODEL_ID = "hf:zai-org/GLM-4.7-Flash";
+export const GPT_OSS_120B_MODEL_ID = "hf:openai/gpt-oss-120b";
 export const KIMI_K3_MODEL_ID = "hf:moonshotai/Kimi-K3";
 export const QWEN_3_6_27B_MODEL_ID = "hf:Qwen/Qwen3.6-27B";
 export const MINIMAX_M3_MODEL_ID = "hf:MiniMaxAI/MiniMax-M3";
@@ -26,122 +27,70 @@ export const KIMI_K27_CODE_MODEL_ID = "hf:moonshotai/Kimi-K2.7-Code";
 
 type SyntheticModelOverrides = Pick<ProviderModelConfig, "compat"> &
 	Partial<Pick<ProviderModelConfig, "reasoning" | "thinkingLevelMap">>;
+type SyntheticThinkingLevel = keyof NonNullable<ProviderModelConfig["thinkingLevelMap"]>;
+type SyntheticReasoningEffort = "none" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
-/**
- * Per-model reasoning-effort support (https://github.com/ben-vargas/pi-packages/issues/21).
- *
- * Live Synthetic API probes verified which `reasoning_effort` values are accepted
- * and whether they engage reasoning. GLM-5.2, GLM-4.7-Flash, Qwen3.6-27B,
- * Nemotron, and Kimi-K3 map off to `none`; their `low` value also disables
- * reasoning, so pi's minimal and low levels are hidden. GLM-4.7-Flash and
- * Nemotron reject `max`, while GLM-5.2, Kimi-K3, and Qwen accept it for xhigh.
- *
- * Kimi-K3 supersedes Kimi-K2.7-Code here. K2.7-Code leaked raw thinking tags at
- * `none`/`low`, which forced its `off` level to stay hidden; K3 returns clean
- * content at both, so `off` is selectable. MiniMax reasons at every probed
- * value, so off is hidden and only its verified medium tier is exposed.
- * Relative depth between accepted tiers was not established. `null` hides a
- * level from pi's thinking-level cycling.
- *
- * `reasoning: true` is pinned because the live catalog may omit
- * `supported_features`; each override enables OpenAI-style reasoning effort.
- */
+const REASONING_EFFORT_LEVELS: Record<SyntheticReasoningEffort, SyntheticThinkingLevel> = {
+	none: "off",
+	off: "off",
+	minimal: "minimal",
+	low: "low",
+	medium: "medium",
+	high: "high",
+	xhigh: "xhigh",
+	max: "max",
+};
 
-const GLM_5_2_REASONING_OVERRIDES = {
-	reasoning: true,
-	compat: {
-		...SYNTHETIC_COMPAT,
-		supportsReasoningEffort: true,
-	},
-	thinkingLevelMap: {
-		off: "none",
-		minimal: null,
-		low: null,
-		medium: "medium",
-		high: "high",
-		xhigh: "max",
-	},
-} satisfies SyntheticModelOverrides;
-
-const GLM_4_7_FLASH_REASONING_OVERRIDES = {
-	reasoning: true,
-	compat: {
-		...SYNTHETIC_COMPAT,
-		supportsReasoningEffort: true,
-	},
-	thinkingLevelMap: {
-		off: "none",
-		minimal: null,
-		low: null,
-		medium: "medium",
-		high: "high",
-		xhigh: null,
-	},
-} satisfies SyntheticModelOverrides;
-
-const KIMI_K3_REASONING_OVERRIDES = {
-	reasoning: true,
-	compat: {
-		...SYNTHETIC_COMPAT,
-		supportsReasoningEffort: true,
-	},
-	thinkingLevelMap: {
-		off: "none",
-		minimal: null,
-		low: null,
-		medium: "medium",
-		high: "high",
-		xhigh: "max",
-	},
-} satisfies SyntheticModelOverrides;
-
-const QWEN_3_6_27B_REASONING_OVERRIDES = {
-	reasoning: true,
-	compat: {
-		...SYNTHETIC_COMPAT,
-		supportsReasoningEffort: true,
-	},
-	thinkingLevelMap: {
-		off: "none",
-		minimal: null,
-		low: null,
-		medium: "medium",
-		high: "high",
-		xhigh: "max",
-	},
-} satisfies SyntheticModelOverrides;
-
-const MINIMAX_M3_REASONING_OVERRIDES = {
-	reasoning: true,
-	compat: {
-		...SYNTHETIC_COMPAT,
-		supportsReasoningEffort: true,
-	},
-	thinkingLevelMap: {
+function createReasoningOverrides(efforts: readonly SyntheticReasoningEffort[]): SyntheticModelOverrides;
+function createReasoningOverrides(efforts: readonly string[]): SyntheticModelOverrides | undefined;
+function createReasoningOverrides(efforts: readonly string[]): SyntheticModelOverrides | undefined {
+	const thinkingLevelMap: NonNullable<ProviderModelConfig["thinkingLevelMap"]> = {
 		off: null,
 		minimal: null,
 		low: null,
-		medium: "medium",
+		medium: null,
 		high: null,
 		xhigh: null,
-	},
-} satisfies SyntheticModelOverrides;
+		max: null,
+	};
+	let hasKnownEffort = false;
 
-const NEMOTRON_3_SUPER_REASONING_OVERRIDES = {
-	reasoning: true,
-	compat: {
-		...SYNTHETIC_COMPAT,
-		supportsReasoningEffort: true,
-	},
-	thinkingLevelMap: {
-		off: "none",
-		minimal: null,
-		low: null,
-		medium: "medium",
-		high: "high",
-		xhigh: null,
-	},
-} satisfies SyntheticModelOverrides;
+	for (const rawEffort of efforts) {
+		if (typeof rawEffort !== "string") continue;
+		const effort = rawEffort.trim();
+		const level = REASONING_EFFORT_LEVELS[effort.toLowerCase() as SyntheticReasoningEffort];
+		if (!level) continue;
+		thinkingLevelMap[level] = effort;
+		hasKnownEffort = true;
+	}
+
+	if (!hasKnownEffort) return undefined;
+	return {
+		reasoning: true,
+		compat: {
+			...SYNTHETIC_COMPAT,
+			supportsReasoningEffort: true,
+		},
+		thinkingLevelMap,
+	};
+}
+
+/**
+ * Hardcoded reasoning-effort fallbacks for startup when the live catalog cannot
+ * be fetched. Values mirror the authenticated catalog's
+ * `reasoning_parameters.efforts`; live rows override these snapshots.
+ *
+ * Kimi K3 always reasons and only accepts `low`, `high`, and `max`, so `off` is
+ * deliberately unavailable. MiniMax M3 is no longer in the current catalog; its
+ * last verified `medium`-only control remains for the offline fallback entry.
+ */
+const GLM_5_2_REASONING_OVERRIDES = createReasoningOverrides(["none", "high", "max"]);
+const GLM_4_7_FLASH_REASONING_OVERRIDES = createReasoningOverrides(["none", "low", "medium", "high"]);
+const GPT_OSS_120B_REASONING_OVERRIDES = createReasoningOverrides(["none", "low", "medium", "high"]);
+const KIMI_K3_REASONING_OVERRIDES = createReasoningOverrides(["low", "high", "max"]);
+const QWEN_3_6_27B_REASONING_OVERRIDES = createReasoningOverrides(["none", "low", "medium", "high"]);
+const MINIMAX_M3_REASONING_OVERRIDES = createReasoningOverrides(["medium"]);
+const NEMOTRON_3_SUPER_REASONING_OVERRIDES = createReasoningOverrides(["none", "low", "medium", "high"]);
 
 /**
  * A `Map` rather than a plain object: `REASONING_OVERRIDES[modelId]` on an object
@@ -151,6 +100,7 @@ const NEMOTRON_3_SUPER_REASONING_OVERRIDES = {
 const REASONING_OVERRIDES = new Map<string, SyntheticModelOverrides>([
 	[GLM_5_2_MODEL_ID, GLM_5_2_REASONING_OVERRIDES],
 	[GLM_4_7_FLASH_MODEL_ID, GLM_4_7_FLASH_REASONING_OVERRIDES],
+	[GPT_OSS_120B_MODEL_ID, GPT_OSS_120B_REASONING_OVERRIDES],
 	[KIMI_K3_MODEL_ID, KIMI_K3_REASONING_OVERRIDES],
 	[QWEN_3_6_27B_MODEL_ID, QWEN_3_6_27B_REASONING_OVERRIDES],
 	[MINIMAX_M3_MODEL_ID, MINIMAX_M3_REASONING_OVERRIDES],
@@ -163,34 +113,42 @@ const PERMALINK_ID_PREFIX = "syn:";
 /**
  * Resolve the reasoning-effort overrides for a catalog id.
  *
- * Pinned `hf:*` ids match the table directly. Permalink `syn:*` ids name no model
- * of their own — Synthetic re-points them as the lineup rotates — so they resolve
- * through the catalog row's `hugging_face_id`, which names the current target.
- * Live probes confirm an alias request behaves exactly like a request to its
- * target, including inheriting the target's rejection of unsupported values.
+ * A live catalog row's `reasoning_parameters.efforts` is authoritative and is
+ * converted into an exact pi thinking-level map. Unsupported levels are marked
+ * `null`, so the selector only exposes values Synthetic says the route accepts.
  *
- * Resolution fails closed. An unknown, absent, or already-prefixed target, or a
- * row whose `supported_features` explicitly omits `reasoning`, yields the shared
- * compat and no `reasoning_effort` is emitted at all. That is deliberate: sending
- * a value the backend rejects fails the whole request with HTTP 400, which is
- * strictly worse than running at the server-side default effort.
+ * When live effort metadata is absent, pinned `hf:*` ids use the hardcoded
+ * startup snapshots above. Permalink `syn:*` ids then resolve through the row's
+ * `hugging_face_id`, which names their current target.
+ *
+ * Resolution fails closed. An explicit non-reasoning capability list, an empty
+ * or unrecognized live effort list, or an unknown permalink target yields shared
+ * compat and emits no `reasoning_effort`. Sending a rejected value can fail the
+ * entire request, which is worse than using the server-side default.
  *
  * The `model` parameter is optional so existing single-argument callers — the
  * fallback catalog and any deep-import consumer — keep working unchanged.
  */
 export function getSyntheticModelOverrides(modelId: string, model?: SyntheticModel): SyntheticModelOverrides {
+	const declaresNoReasoning =
+		model && Array.isArray(model.supported_features) && !model.supported_features.includes("reasoning");
+	if (declaresNoReasoning) {
+		return { compat: SYNTHETIC_COMPAT };
+	}
+
+	const advertisedEfforts = model?.reasoning_parameters?.efforts;
+	if (Array.isArray(advertisedEfforts)) {
+		return createReasoningOverrides(advertisedEfforts) ?? { compat: SYNTHETIC_COMPAT };
+	}
+
 	const direct = REASONING_OVERRIDES.get(modelId);
 	if (direct) {
 		return direct;
 	}
 
 	if (model && modelId.startsWith(PERMALINK_ID_PREFIX)) {
-		// An explicit capability list that omits reasoning outranks the target's
-		// probed map: the alias row is the authority on what this route accepts.
-		const declaresNoReasoning =
-			Array.isArray(model.supported_features) && !model.supported_features.includes("reasoning");
 		const target = model.hugging_face_id;
-		if (!declaresNoReasoning && typeof target === "string" && target && !target.includes(":")) {
+		if (typeof target === "string" && target && !target.includes(":")) {
 			const aliased = REASONING_OVERRIDES.get(`hf:${target}`);
 			if (aliased) {
 				return aliased;
@@ -326,7 +284,8 @@ export async function fetchSyntheticModels(
 /**
  * Fallback models if API fetch fails.
  * Data sourced from: authenticated GET https://api.synthetic.new/openai/v1/models
- * Last updated: 2026-07-28
+ * Model metadata last updated: 2026-07-28
+ * Reasoning efforts last updated: 2026-08-10
  *
  * Mirrors the live `always_on` catalog. The `syn:*` permalinks are stable
  * aliases Synthetic re-points as models rotate; `syn:large:vision` now resolves
@@ -405,7 +364,7 @@ export function getFallbackModels(): ProviderModelConfig[] {
 			compat: SYNTHETIC_COMPAT,
 		},
 		{
-			id: "hf:openai/gpt-oss-120b",
+			id: GPT_OSS_120B_MODEL_ID,
 			name: "openai/gpt-oss-120b",
 			reasoning: true,
 			input: ["text"],
@@ -417,7 +376,7 @@ export function getFallbackModels(): ProviderModelConfig[] {
 			},
 			contextWindow: 131072,
 			maxTokens: 65536,
-			compat: SYNTHETIC_COMPAT,
+			...getSyntheticModelOverrides(GPT_OSS_120B_MODEL_ID),
 		},
 		{
 			id: GLM_5_2_MODEL_ID,

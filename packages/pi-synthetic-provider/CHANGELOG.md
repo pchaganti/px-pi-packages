@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-08-10
+
+### Added
+- `/synthetic-models` now shows the catalog's advertised reasoning-effort values in the selected model details.
+
+### Changed
+- Live model discovery now derives exact pi thinking levels from each row's `reasoning_parameters.efforts`, including `syn:*` permalinks and newly added reasoning models. Known pinned models retain hardcoded effort snapshots for startup fallback when the catalog is unavailable; offline permalinks still fail closed because their targets can rotate.
+- Refreshed hardcoded reasoning-effort snapshots from the authenticated catalog, including enabling catalog-advertised controls for GPT OSS 120B.
+
+### Fixed
+- Corrected Kimi K3's thinking levels to its documented and catalog-advertised `low`, `high`, and `max` values. K3 always reasons, so `off` is no longer selectable; the unsupported `none` and `medium` values are no longer sent.
+
 ## [1.2.3] - 2026-08-06
 
 ### Fixed

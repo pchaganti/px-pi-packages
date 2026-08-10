@@ -17,7 +17,12 @@ interface MockSelectList {
 	invalidate: ReturnType<typeof vi.fn>;
 }
 
+interface MockText {
+	setText: ReturnType<typeof vi.fn>;
+}
+
 let lastSelectList: MockSelectList | null = null;
+let lastDetailsText: MockText | null = null;
 
 vi.mock("@earendil-works/pi-tui", async (importOriginal) => {
 	const original = await importOriginal<typeof import("@earendil-works/pi-tui")>();
@@ -34,8 +39,11 @@ vi.mock("@earendil-works/pi-tui", async (importOriginal) => {
 		render = vi.fn().mockReturnValue([]);
 		invalidate = vi.fn();
 	}
-	class MockText {
+	class MockTextImpl {
 		setText = vi.fn();
+		constructor(initialText: string) {
+			if (initialText === "") lastDetailsText = this;
+		}
 	}
 	class MockSelectListImpl {
 		onSelectionChange?: (item: { value: string }) => void;
@@ -53,7 +61,7 @@ vi.mock("@earendil-works/pi-tui", async (importOriginal) => {
 		Box: MockBox,
 		Container: MockContainer,
 		Spacer: MockSpacer,
-		Text: MockText,
+		Text: MockTextImpl,
 		SelectList: MockSelectListImpl,
 	};
 });
@@ -165,6 +173,7 @@ const SINGLE_MODEL_RESPONSE = {
 				max_output_length: 32768,
 				pricing: { prompt: "$0.001", completion: "$0.002" },
 				supported_features: ["tools", "reasoning"],
+				reasoning_parameters: { efforts: ["low", "high", "max"] },
 				always_on: true,
 				provider: "synthetic",
 			},
@@ -180,6 +189,7 @@ describe("/synthetic-models command", () => {
 	beforeEach(() => {
 		vi.stubGlobal("fetch", vi.fn());
 		lastSelectList = null;
+		lastDetailsText = null;
 	});
 	afterEach(() => {
 		vi.unstubAllGlobals();
@@ -222,6 +232,8 @@ describe("/synthetic-models command", () => {
 
 		expect(ctx.ui.custom).toHaveBeenCalledTimes(1);
 		expect(ctx.ui.custom).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({ overlay: true }));
+		if (!lastDetailsText) throw new Error("Details text was not created");
+		expect(lastDetailsText.setText).toHaveBeenCalledWith(expect.stringContaining("Reasoning efforts: low, high, max"));
 
 		const renderer = getCapturedRenderer();
 		expect(typeof renderer.render).toBe("function");

@@ -115,6 +115,7 @@ export function registerSyntheticModelsCommand(pi: ExtensionAPI): void {
 
 							const provider = model.provider || "unknown";
 							const caps = getModelCapabilities(model);
+							const reasoningEfforts = model.reasoning_parameters?.efforts;
 							const datacenters = formatDatacenters(model.datacenters);
 
 							const lines = [
@@ -125,6 +126,7 @@ export function registerSyntheticModelsCommand(pi: ExtensionAPI): void {
 								`${theme.fg("muted", "Max output:")} ${formatContextTokens(model.max_output_length)} (${formatTokenCount(model.max_output_length)})`,
 								`${theme.fg("muted", "Pricing ($/M):")} in ${formatPrice(model.pricing?.prompt)} · out ${formatPrice(model.pricing?.completion)} · cache ${formatPrice(model.pricing?.input_cache_reads)}`,
 								`${theme.fg("muted", "Capabilities:")} ${caps.length > 0 ? caps.join(", ") : "none"}`,
+								`${theme.fg("muted", "Reasoning efforts:")} ${reasoningEfforts && reasoningEfforts.length > 0 ? reasoningEfforts.join(", ") : "n/a"}`,
 								`${theme.fg("muted", "Datacenters:")} ${datacenters}`,
 								"",
 								`${theme.fg("muted", "Use with:")} synthetic/${model.id}`,

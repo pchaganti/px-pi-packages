@@ -17,6 +17,9 @@ export interface SyntheticModel {
 		input_cache_writes?: string;
 	};
 	supported_features?: string[];
+	reasoning_parameters?: {
+		efforts?: string[];
+	};
 	always_on?: boolean;
 	provider?: string;
 	datacenters?: { country_code: string }[];

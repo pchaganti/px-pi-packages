@@ -92,15 +92,15 @@ Prices are $ per million tokens, current as of 2026-07-28.
 
 The `syn:*` ids are permalinks that Synthetic re-points as models rotate, so configs using them survive model retirements — `syn:large:vision` moved from Kimi K2.7-Code to Kimi K3 in this release. The `hf:*` ids pin a specific model and break when it is retired.
 
-### Thinking levels on permalinks
+### Thinking levels
 
-When models are discovered live, a `syn:*` permalink inherits its current target's thinking-level support, resolved from the catalog's `hugging_face_id`. Selecting `syn:large:vision` gives you the same levels as `hf:moonshotai/Kimi-K3`.
+During live discovery, the extension derives each model's exact pi thinking levels from the catalog's `reasoning_parameters.efforts`. Unsupported levels are hidden instead of being mapped onto values the route does not advertise. This works for pinned `hf:*` ids and for `syn:*` permalinks, so a permalink automatically follows its current target's effort controls when Synthetic re-points it.
 
-This follows a re-point automatically **only when the new target is one of the models already in the verified override table**. Those maps come from live probing — which `reasoning_effort` values a model accepts, and which silently disable reasoning — and cannot be derived from the catalog, since `supported_features` reports only that a model reasons, not how it can be steered. If Synthetic re-points a permalink to a model this package has not probed, the permalink stops emitting `reasoning_effort` until a release adds it.
+Kimi K3 advertises `low`, `high`, and `max`. It always reasons, so `off` is unavailable; pi sends those three values unchanged as top-level `reasoning_effort`. `/synthetic-models` shows the advertised values in the selected model details.
 
-That is the deliberate failure mode: when the target is unrecognized, or the catalog row declares no reasoning support, the permalink emits nothing rather than guessing. A rejected value fails the whole request, while omitting it simply runs at the server-side default.
+If the catalog request fails, pinned fallback models use hardcoded snapshots of their last advertised effort lists. Offline permalinks deliberately emit no `reasoning_effort`: without a live row there is no trustworthy way to know what an alias currently targets. Pi still displays its generic `off` through `high` levels for those fallback aliases because they declare `reasoning: true`, but the selections have no effect on the request.
 
-In the offline fallback list, permalinks never emit `reasoning_effort` at all — with no catalog row there is no way to know what the alias currently points at. Note that pi still *displays* thinking levels `off` through `high` for them, because those entries set `reasoning: true`; the selections just have no effect on the request.
+An explicit non-reasoning capability list or an empty/unrecognized live effort list fails closed and emits no `reasoning_effort`. A rejected value can fail the entire request, while omission uses the server-side default.
 
 Kimi K3 is at beta launch pricing; Synthetic expects to lower it as engine optimization improves. Run `/synthetic-models` inside pi for the live catalog.
 

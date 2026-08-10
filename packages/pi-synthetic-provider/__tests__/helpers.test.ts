@@ -96,24 +96,34 @@ describe("pi-synthetic-provider helpers", () => {
 		}
 	});
 
-	it("enables reasoning effort for all reasoning models in fallback models", () => {
+	it("enables exact catalog reasoning efforts for fallback models", () => {
 		const models = getFallbackModels();
+		const noneLowMediumHigh = {
+			off: "none",
+			minimal: null,
+			low: "low",
+			medium: "medium",
+			high: "high",
+			xhigh: null,
+			max: null,
+		};
 		const reasoningModels = [
-			["hf:zai-org/GLM-5.2", { off: "none", minimal: null, low: null, medium: "medium", high: "high", xhigh: "max" }],
 			[
-				"hf:zai-org/GLM-4.7-Flash",
-				{ off: "none", minimal: null, low: null, medium: "medium", high: "high", xhigh: null },
+				"hf:zai-org/GLM-5.2",
+				{ off: "none", minimal: null, low: null, medium: null, high: "high", xhigh: null, max: "max" },
 			],
+			["hf:zai-org/GLM-4.7-Flash", noneLowMediumHigh],
+			["hf:openai/gpt-oss-120b", noneLowMediumHigh],
 			[
 				"hf:moonshotai/Kimi-K3",
-				{ off: "none", minimal: null, low: null, medium: "medium", high: "high", xhigh: "max" },
+				{ off: null, minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max" },
 			],
-			["hf:Qwen/Qwen3.6-27B", { off: "none", minimal: null, low: null, medium: "medium", high: "high", xhigh: "max" }],
-			["hf:MiniMaxAI/MiniMax-M3", { off: null, minimal: null, low: null, medium: "medium", high: null, xhigh: null }],
+			["hf:Qwen/Qwen3.6-27B", noneLowMediumHigh],
 			[
-				"hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
-				{ off: "none", minimal: null, low: null, medium: "medium", high: "high", xhigh: null },
+				"hf:MiniMaxAI/MiniMax-M3",
+				{ off: null, minimal: null, low: null, medium: "medium", high: null, xhigh: null, max: null },
 			],
+			["hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4", noneLowMediumHigh],
 		] as const;
 
 		for (const [id, thinkingLevelMap] of reasoningModels) {
@@ -122,19 +132,10 @@ describe("pi-synthetic-provider helpers", () => {
 			expect(model?.thinkingLevelMap).toEqual(thinkingLevelMap);
 		}
 
-		// These are NOT non-reasoning models — all four permalinks resolve to
-		// reasoning models and gpt-oss-120b advertises reasoning too. They keep the
-		// default compat deliberately: offline there is no catalog row naming the
-		// permalink's current target, and a stale effort map can fail every request
-		// with HTTP 400, which is worse than running at the server-side default.
-		// Live discovery resolves these through hugging_face_id; see index.test.ts.
-		for (const id of [
-			"syn:large:text",
-			"syn:small:text",
-			"syn:large:vision",
-			"syn:small:vision",
-			"hf:openai/gpt-oss-120b",
-		]) {
+		// Permalinks keep default compat offline because there is no live row proving
+		// which target they currently resolve to. Live discovery uses each row's
+		// reasoning_parameters.efforts, with hugging_face_id as a legacy fallback.
+		for (const id of ["syn:large:text", "syn:small:text", "syn:large:vision", "syn:small:vision"]) {
 			const model = models.find((m) => m.id === id);
 			expect(model).toMatchObject({ compat: { supportsReasoningEffort: false } });
 			expect(model?.thinkingLevelMap).toBeUndefined();

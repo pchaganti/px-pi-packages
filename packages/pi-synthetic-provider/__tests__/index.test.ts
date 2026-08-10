@@ -4,42 +4,58 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import syntheticProvider, { getFallbackModels } from "../extensions/index.js";
 
 const GLM_5_2_MODEL_ID = "hf:zai-org/GLM-5.2";
+const KIMI_K3_MODEL_ID = "hf:moonshotai/Kimi-K3";
 const MINIMAX_M3_MODEL_ID = "hf:MiniMaxAI/MiniMax-M3";
+const NONE_LOW_MEDIUM_HIGH_MAP = {
+	off: "none",
+	minimal: null,
+	low: "low",
+	medium: "medium",
+	high: "high",
+	xhigh: null,
+	max: null,
+} as const;
 const REASONING_MODEL_MAPS = {
-	[GLM_5_2_MODEL_ID]: { off: "none", minimal: null, low: null, medium: "medium", high: "high", xhigh: "max" },
-	"hf:zai-org/GLM-4.7-Flash": {
+	[GLM_5_2_MODEL_ID]: {
 		off: "none",
 		minimal: null,
 		low: null,
-		medium: "medium",
+		medium: null,
 		high: "high",
 		xhigh: null,
+		max: "max",
 	},
-	"hf:moonshotai/Kimi-K3": {
-		off: "none",
+	"hf:zai-org/GLM-4.7-Flash": NONE_LOW_MEDIUM_HIGH_MAP,
+	"hf:openai/gpt-oss-120b": NONE_LOW_MEDIUM_HIGH_MAP,
+	[KIMI_K3_MODEL_ID]: {
+		off: null,
 		minimal: null,
-		low: null,
-		medium: "medium",
-		high: "high",
-		xhigh: "max",
-	},
-	"hf:Qwen/Qwen3.6-27B": {
-		off: "none",
-		minimal: null,
-		low: null,
-		medium: "medium",
-		high: "high",
-		xhigh: "max",
-	},
-	[MINIMAX_M3_MODEL_ID]: { off: null, minimal: null, low: null, medium: "medium", high: null, xhigh: null },
-	"hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4": {
-		off: "none",
-		minimal: null,
-		low: null,
-		medium: "medium",
+		low: "low",
+		medium: null,
 		high: "high",
 		xhigh: null,
+		max: "max",
 	},
+	"hf:Qwen/Qwen3.6-27B": NONE_LOW_MEDIUM_HIGH_MAP,
+	[MINIMAX_M3_MODEL_ID]: {
+		off: null,
+		minimal: null,
+		low: null,
+		medium: "medium",
+		high: null,
+		xhigh: null,
+		max: null,
+	},
+	"hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4": NONE_LOW_MEDIUM_HIGH_MAP,
+} as const;
+const REASONING_MODEL_EFFORTS = {
+	[GLM_5_2_MODEL_ID]: ["none", "high", "max"],
+	"hf:zai-org/GLM-4.7-Flash": ["none", "low", "medium", "high"],
+	"hf:openai/gpt-oss-120b": ["none", "low", "medium", "high"],
+	[KIMI_K3_MODEL_ID]: ["low", "high", "max"],
+	"hf:Qwen/Qwen3.6-27B": ["none", "low", "medium", "high"],
+	[MINIMAX_M3_MODEL_ID]: ["medium"],
+	"hf:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4": ["none", "low", "medium", "high"],
 } as const;
 const REASONING_MODEL_IDS = Object.keys(REASONING_MODEL_MAPS);
 
@@ -115,12 +131,13 @@ describe("pi-synthetic-provider", () => {
 		);
 	});
 
-	it("applies reasoning-effort overrides for all reasoning models in live fetch", async () => {
-		const liveModel = (id: string, name: string) => ({
+	it("derives exact reasoning-effort overrides from the live catalog", async () => {
+		const liveModel = (id: string, name: string, efforts: readonly string[]) => ({
 			id,
 			name,
 			always_on: true,
 			supported_features: ["tools", "reasoning"],
+			reasoning_parameters: { efforts },
 			input_modalities: ["text"],
 			context_length: 524288,
 			max_output_length: 65536,
@@ -131,7 +148,9 @@ describe("pi-synthetic-provider", () => {
 			vi.fn().mockResolvedValue({
 				ok: true,
 				json: async () => ({
-					data: REASONING_MODEL_IDS.map((id) => liveModel(id, id)),
+					data: REASONING_MODEL_IDS.map((id) =>
+						liveModel(id, id, REASONING_MODEL_EFFORTS[id as keyof typeof REASONING_MODEL_EFFORTS]),
+					),
 				}),
 			}),
 		);
@@ -147,7 +166,85 @@ describe("pi-synthetic-provider", () => {
 		}
 	});
 
-	it("resolves syn:* permalink overrides through the catalog target", async () => {
+	it("lets live effort metadata override the hardcoded Kimi K3 fallback", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							id: KIMI_K3_MODEL_ID,
+							name: "moonshotai/Kimi-K3",
+							always_on: true,
+							supported_features: ["tools", "reasoning"],
+							reasoning_parameters: { efforts: ["low", "high"] },
+							input_modalities: ["text", "image"],
+							context_length: 524288,
+							max_output_length: 65536,
+							pricing: { prompt: "3", completion: "15" },
+						},
+					],
+				}),
+			}),
+		);
+		const mockPi = createMockPi();
+		await syntheticProvider(mockPi as unknown as ExtensionAPI);
+
+		const models = mockPi.registerProvider.mock.calls[0]?.[1].models as ProviderModelConfig[];
+		expect(models[0]?.thinkingLevelMap).toEqual({
+			off: null,
+			minimal: null,
+			low: "low",
+			medium: null,
+			high: "high",
+			xhigh: null,
+			max: null,
+		});
+	});
+
+	it("enables advertised efforts for newly discovered reasoning models", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							id: "hf:example/new-reasoning-model",
+							name: "example/new-reasoning-model",
+							always_on: true,
+							supported_features: ["tools", "reasoning"],
+							reasoning_parameters: { efforts: ["none", "max"] },
+							input_modalities: ["text"],
+							context_length: 128000,
+							max_output_length: 32768,
+							pricing: { prompt: "1", completion: "3" },
+						},
+					],
+				}),
+			}),
+		);
+		const mockPi = createMockPi();
+		await syntheticProvider(mockPi as unknown as ExtensionAPI);
+
+		const models = mockPi.registerProvider.mock.calls[0]?.[1].models as ProviderModelConfig[];
+		expect(models[0]).toMatchObject({
+			reasoning: true,
+			compat: { supportsReasoningEffort: true },
+			thinkingLevelMap: {
+				off: "none",
+				minimal: null,
+				low: null,
+				medium: null,
+				high: null,
+				xhigh: null,
+				max: "max",
+			},
+		});
+	});
+
+	it("resolves syn:* permalink overrides through the catalog target when effort metadata is absent", async () => {
 		const permalinks = [
 			["syn:large:text", "zai-org/GLM-5.2"],
 			["syn:small:text", "zai-org/GLM-4.7-Flash"],
@@ -189,7 +286,7 @@ describe("pi-synthetic-provider", () => {
 	it("leaves permalinks bare when the target cannot be resolved safely", async () => {
 		// Each row fails closed for a different reason: unknown target, absent
 		// target, an already-prefixed value, and an explicit non-reasoning
-		// capability list that outranks the target's probed map.
+		// capability list that outranks the target's fallback map.
 		const rows = [
 			{ id: "syn:large:vision", hugging_face_id: "moonshotai/Kimi-K9", supported_features: ["tools", "reasoning"] },
 			{ id: "syn:large:text", supported_features: ["tools", "reasoning"] },
@@ -232,8 +329,8 @@ describe("pi-synthetic-provider", () => {
 				json: async () => ({
 					data: [
 						{
-							id: "hf:openai/gpt-oss-120b",
-							name: "openai/gpt-oss-120b",
+							id: "hf:example/other-model",
+							name: "example/other-model",
 							hugging_face_id: "moonshotai/Kimi-K3",
 							always_on: true,
 							supported_features: ["tools", "reasoning"],
@@ -250,7 +347,7 @@ describe("pi-synthetic-provider", () => {
 		await syntheticProvider(mockPi as unknown as ExtensionAPI);
 
 		const models = mockPi.registerProvider.mock.calls[0]?.[1].models as ProviderModelConfig[];
-		const model = models.find((candidate) => candidate.id === "hf:openai/gpt-oss-120b");
+		const model = models.find((candidate) => candidate.id === "hf:example/other-model");
 		expect(model).toMatchObject({ compat: { supportsReasoningEffort: false } });
 		expect(model?.thinkingLevelMap).toBeUndefined();
 	});
