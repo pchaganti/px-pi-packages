@@ -7,6 +7,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-10
+
 ### Added
 - Compact result renderer for generated alias tools. `getAllTools()` does not expose source tool renderers, so live alias rows (rendered under the `mcp__` name before the `message_end` rewrite) previously fell back to Pi's unbounded generic output. Alias results now render through a compact renderer that follows Pi's default display pipeline and hardens its terminal normalization: fully assembled output, including MIME-derived `imageFallback` placeholders, is normalized before truncation and styling, stripping ANSI CSI/OSC sequences in ESC and 8-bit C1 forms, remaining C0/C1 controls except tab/LF, DEL, unsafe binary/format characters, and carriage returns; collapsed views show at most 3 visual lines / 2000 characters (truncated on Unicode code point boundaries) with a keybinding-aware `keyHint("app.tools.expand", "to expand")` hint; partial (streaming) results render through the same path as they arrive; inline images are left to Pi's tool row, with a textual `imageFallback` placeholder only when images are hidden or unsupported; and `(empty result)` appears only for genuinely empty final results (never for image-only inline results or still-streaming partials).
 - New `@earendil-works/pi-tui` peer dependency (`>=0.77.0`, matching this package's Pi floor) for the `Component`/`Text` primitives and public terminal-image utilities (`getCapabilities`, `getImageDimensions`, `imageFallback`) used by the renderer.
