@@ -7,6 +7,8 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-11
+
 ### Added
 - Added `mono-black` and `mono-light`, adapted from the MIT-licensed `kartikkabadi/pi-mono-themes` project.
 - Added documentation for using the monochrome themes as a pi 0.84.0 automatic light/dark pair.
