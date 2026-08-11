@@ -7,6 +7,15 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added `mono-black` and `mono-light`, adapted from the MIT-licensed `kartikkabadi/pi-mono-themes` project.
+- Added documentation for using the monochrome themes as a pi 0.84.0 automatic light/dark pair.
+- Added explicit HTML export color mappings for both monochrome themes.
+
+### Changed
+- Added visible grayscale `scrollbarThumb` colors instead of relying on the low-contrast `selectedBg` fallback.
+- Added the upstream source snapshot, local modifications, copyright, and complete MIT license to the third-party notices.
+
 ## [1.1.0] - 2026-08-06
 
 ### Added

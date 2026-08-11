@@ -7,6 +7,8 @@ A collection of themes for [pi](https://github.com/earendil-works/pi).
 | Theme | Appearance | Description |
 |-------|------------|-------------|
 | `github-light-default` | Light | GitHub Light Default-inspired interface, Markdown, tool, diff, syntax, and thinking-level colors |
+| `mono-black` | Dark | Strict monochrome theme with a black background and grayscale surfaces |
+| `mono-light` | Light | Strict monochrome theme with a white background and grayscale surfaces |
 | `orng-light` | Light | Adaptation of OpenCode's warm orange Orng theme |
 
 ## Install
@@ -53,6 +55,20 @@ The original Orng theme was created by Matt Silverlock and is distributed with O
 
 Like the other light theme, `orng-light` expects a terminal with a light background.
 
+### Mono Black and Mono Light
+
+`mono-black` and `mono-light` are strict monochrome themes: every interface, Markdown, diff, syntax, and thinking-level token maps to black, white, or a shade of gray. They are adapted from Kartik Kabadi's MIT-licensed [pi-mono-themes](https://github.com/kartikkabadi/pi-mono-themes).
+
+Each theme can be selected individually. With pi 0.84.0 or newer, they can also follow the terminal's detected color scheme automatically:
+
+```json
+{
+  "theme": "mono-light/mono-black"
+}
+```
+
+Pi checks the terminal color-scheme or background response and falls back to the dark theme when detection is unavailable. These packaged adaptations also provide visible fullscreen scrollbar colors and explicit monochrome colors for HTML session exports.
+
 ## Versioning
 
 This package follows [Semantic Versioning](https://semver.org/). See [CHANGELOG.md](./CHANGELOG.md) for release history.
@@ -65,4 +81,4 @@ pi remove npm:@benvargas/pi-themes
 
 ## License
 
-MIT. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for upstream palette licenses.
+MIT. See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for third-party theme licenses and attributions.
